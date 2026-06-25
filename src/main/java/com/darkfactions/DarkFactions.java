@@ -36,6 +36,9 @@ public class DarkFactions extends JavaPlugin {
     // Reference to the command handler so the listener can access chat modes
     private FactionCommand factionCommand;
 
+    // Task ID for the periodic auto-save scheduler (-1 when not running)
+    private int autoSaveTaskId = -1;
+
     // Called when the server enables/loads our plugin
     @Override
     public void onEnable() {
@@ -89,18 +92,42 @@ public class DarkFactions extends JavaPlugin {
         powerManager.loadPowerData();
         elixirManager.loadElixirData();
 
+        // ==========================================
+        // Start the periodic auto-save so a crash
+        // never wipes out faction data between restarts
+        // ==========================================
+        startAutoSaveTask();
+
         // We made it!
         getLogger().info("DarkFactions has been enabled! Ready for battle!");
     }
 
-    // Called when the server disables/unloads our plugin
-    @Override
-    public void onDisable() {
+    // ==========================================
+    // Auto-save - persists all data on an interval
+    // Interval comes from general.auto-save-interval-seconds
+    // (0 disables it). Runs on the main thread so it reads
+    // a consistent snapshot of the in-memory data.
+    // ==========================================
+    private void startAutoSaveTask() {
+        if (autoSaveTaskId != -1) {
+            getServer().getScheduler().cancelTask(autoSaveTaskId);
+            autoSaveTaskId = -1;
+        }
 
-        // Save everything before we shut down
-        // Dont want to lose faction data!
-        getLogger().info("DarkFactions is shutting down... saving data...");
+        int intervalSeconds = configManager.getAutoSaveInterval();
+        if (intervalSeconds <= 0) {
+            return; // Auto-save disabled
+        }
 
+        long ticks = 20L * intervalSeconds;
+        autoSaveTaskId = getServer().getScheduler().runTaskTimer(this, () -> {
+            saveAll();
+            getLogger().info("Auto-saved DarkFactions data.");
+        }, ticks, ticks).getTaskId();
+    }
+
+    // Persist every manager's data. Shared by auto-save and shutdown.
+    private void saveAll() {
         if (playerNameCache != null) {
             playerNameCache.saveNames();
         }
@@ -116,6 +143,23 @@ public class DarkFactions extends JavaPlugin {
         if (elixirManager != null) {
             elixirManager.saveElixirData();
         }
+    }
+
+    // Called when the server disables/unloads our plugin
+    @Override
+    public void onDisable() {
+
+        // Save everything before we shut down
+        // Dont want to lose faction data!
+        getLogger().info("DarkFactions is shutting down... saving data...");
+
+        // Stop the auto-save task so it can't fire mid-shutdown
+        if (autoSaveTaskId != -1) {
+            getServer().getScheduler().cancelTask(autoSaveTaskId);
+            autoSaveTaskId = -1;
+        }
+
+        saveAll();
 
         getLogger().info("DarkFactions has been disabled. See you next time!");
     }

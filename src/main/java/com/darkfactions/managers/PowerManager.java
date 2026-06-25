@@ -13,12 +13,12 @@ import com.darkfactions.models.Faction;
 import com.darkfactions.models.FactionPlayer;
 import com.darkfactions.utils.ConfigManager;
 import com.darkfactions.utils.PowerRules;
+import com.darkfactions.utils.YamlStore;
 
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 
 import java.io.File;
-import java.io.IOException;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -229,17 +229,11 @@ public class PowerManager {
             }
         }
 
-        try {
-            config.save(dataFile);
-        } catch (IOException e) {
-            plugin.getLogger().severe("Failed to save player power data! " + e.getMessage());
-        }
+        YamlStore.save(config, dataFile, plugin.getLogger());
     }
 
     public void loadPowerData() {
-        if (!dataFile.exists()) return;
-
-        FileConfiguration config = YamlConfiguration.loadConfiguration(dataFile);
+        FileConfiguration config = YamlStore.load(dataFile, plugin.getLogger());
         if (!config.contains("players")) return;
 
         for (String key : config.getConfigurationSection("players").getKeys(false)) {

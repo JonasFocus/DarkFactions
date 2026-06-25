@@ -9,12 +9,12 @@ package com.darkfactions.managers;
 import com.darkfactions.DarkFactions;
 import com.darkfactions.models.Faction;
 import com.darkfactions.utils.ConfigManager;
+import com.darkfactions.utils.YamlStore;
 
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 
 import java.io.File;
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -69,12 +69,19 @@ public class ElixirManager {
 
     public void addFactionElixir(UUID factionId, double amount) {
         Faction faction = plugin.getFactionManager().getFaction(factionId);
-        if (faction != null) faction.addElixir(amount);
+        if (faction != null) {
+            faction.addElixir(amount);
+            plugin.requestSave();
+        }
     }
 
     public boolean removeFactionElixir(UUID factionId, double amount) {
         Faction faction = plugin.getFactionManager().getFaction(factionId);
-        return faction != null && faction.removeElixir(amount);
+        if (faction != null && faction.removeElixir(amount)) {
+            plugin.requestSave();
+            return true;
+        }
+        return false;
     }
 
     // ==========================================
@@ -113,6 +120,7 @@ public class ElixirManager {
         } else {
             // Add to pending - claimed via /f elixir
             pendingElixir.merge(playerUuid, dailyBonus, Double::sum);
+            plugin.requestSave();
         }
     }
 
@@ -125,6 +133,7 @@ public class ElixirManager {
 
         double amount = pendingElixir.remove(playerUuid);
         faction.addElixir(amount);
+        plugin.requestSave();
         return true;
     }
 
@@ -179,17 +188,11 @@ public class ElixirManager {
             config.set("pending." + entry.getKey().toString(), entry.getValue());
         }
 
-        try {
-            config.save(dataFile);
-        } catch (IOException e) {
-            plugin.getLogger().severe("Failed to save elixir data! " + e.getMessage());
-        }
+        YamlStore.save(config, dataFile, plugin.getLogger());
     }
 
     public void loadElixirData() {
-        if (!dataFile.exists()) return;
-
-        FileConfiguration config = YamlConfiguration.loadConfiguration(dataFile);
+        FileConfiguration config = YamlStore.load(dataFile, plugin.getLogger());
         if (!config.contains("pending")) return;
 
         for (String key : config.getConfigurationSection("pending").getKeys(false)) {

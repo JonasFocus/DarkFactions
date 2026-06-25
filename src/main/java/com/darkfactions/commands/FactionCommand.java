@@ -10,6 +10,8 @@ import com.darkfactions.DarkFactions;
 import com.darkfactions.models.Faction;
 import com.darkfactions.utils.MessageUtils;
 
+import net.kyori.adventure.text.Component;
+
 import org.bukkit.Bukkit;
 import org.bukkit.Chunk;
 import org.bukkit.Location;
@@ -1989,7 +1991,7 @@ public class FactionCommand implements CommandExecutor {
     }
 
     // Broadcast a message to all online members of a faction
-    private void broadcastToFaction(Faction faction, String message) {
+    private void broadcastToFaction(Faction faction, Component message) {
         for (UUID memberUuid : faction.getMembers()) {
             Player member = Bukkit.getPlayer(memberUuid);
             if (member != null && member.isOnline()) {

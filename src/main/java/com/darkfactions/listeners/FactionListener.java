@@ -519,12 +519,13 @@ public class FactionListener implements Listener {
         event.setCancelled(true);
 
         String message = PlainTextComponentSerializer.plainText().serialize(event.message());
-        String prefix = plugin.getMessageUtils().getChatPrefix(); // Get formatted prefix
+        String prefix = LegacyComponentSerializer.legacySection()
+                .serialize(plugin.getMessageUtils().getChatPrefix()); // Get formatted prefix
 
         if ("faction".equals(chatMode)) {
             // Send only to faction members using config format
             String format = plugin.getConfigManager().getFactionChatFormat();
-            format = format.replace("{prefix}", plugin.getMessageUtils().getChatPrefix());
+            format = format.replace("{prefix}", prefix);
             format = format.replace("{tag}", faction.getFormattedTag());
             format = format.replace("{player}", player.getName());
             format = format.replace("{faction}", faction.getName());
@@ -547,7 +548,7 @@ public class FactionListener implements Listener {
         } else if ("ally".equals(chatMode)) {
             // Send to faction members AND allies using config format
             String format = plugin.getConfigManager().getAllyChatFormat();
-            format = format.replace("{prefix}", plugin.getMessageUtils().getChatPrefix());
+            format = format.replace("{prefix}", prefix);
             format = format.replace("{tag}", faction.getFormattedTag());
             format = format.replace("{player}", player.getName());
             format = format.replace("{faction}", faction.getName());

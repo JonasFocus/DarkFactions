@@ -21,11 +21,14 @@ import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
-import org.bukkit.event.player.AsyncPlayerChatEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+
+import io.papermc.paper.event.player.AsyncChatEvent;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -495,7 +498,7 @@ public class FactionListener implements Listener {
     // Intercepts chat messages and routes them
     // ==========================================
     @EventHandler
-    public void onPlayerChat(AsyncPlayerChatEvent event) {
+    public void onPlayerChat(AsyncChatEvent event) {
         Player player = event.getPlayer();
         UUID playerUuid = player.getUniqueId();
 
@@ -515,13 +518,14 @@ public class FactionListener implements Listener {
         // Cancel the normal chat broadcast
         event.setCancelled(true);
 
-        String message = event.getMessage();
-        String prefix = plugin.getMessageUtils().getChatPrefix(); // Get formatted prefix
+        String message = PlainTextComponentSerializer.plainText().serialize(event.message());
+        String prefix = LegacyComponentSerializer.legacySection()
+                .serialize(plugin.getMessageUtils().getChatPrefix()); // Get formatted prefix
 
         if ("faction".equals(chatMode)) {
             // Send only to faction members using config format
             String format = plugin.getConfigManager().getFactionChatFormat();
-            format = format.replace("{prefix}", plugin.getMessageUtils().getChatPrefix());
+            format = format.replace("{prefix}", prefix);
             format = format.replace("{tag}", faction.getFormattedTag());
             format = format.replace("{player}", player.getName());
             format = format.replace("{faction}", faction.getName());
@@ -532,7 +536,7 @@ public class FactionListener implements Listener {
             for (UUID memberUuid : faction.getMembers()) {
                 Player member = player.getServer().getPlayer(memberUuid);
                 if (member != null && member.isOnline()) {
-                    member.sendMessage(format);
+                    member.sendMessage(LegacyComponentSerializer.legacySection().deserialize(format));
                 }
             }
 
@@ -544,7 +548,7 @@ public class FactionListener implements Listener {
         } else if ("ally".equals(chatMode)) {
             // Send to faction members AND allies using config format
             String format = plugin.getConfigManager().getAllyChatFormat();
-            format = format.replace("{prefix}", plugin.getMessageUtils().getChatPrefix());
+            format = format.replace("{prefix}", prefix);
             format = format.replace("{tag}", faction.getFormattedTag());
             format = format.replace("{player}", player.getName());
             format = format.replace("{faction}", faction.getName());
@@ -555,7 +559,7 @@ public class FactionListener implements Listener {
             for (UUID memberUuid : faction.getMembers()) {
                 Player member = player.getServer().getPlayer(memberUuid);
                 if (member != null && member.isOnline()) {
-                    member.sendMessage(format);
+                    member.sendMessage(LegacyComponentSerializer.legacySection().deserialize(format));
                 }
             }
 
@@ -566,7 +570,7 @@ public class FactionListener implements Listener {
                     for (UUID memberUuid : allyFaction.getMembers()) {
                         Player member = player.getServer().getPlayer(memberUuid);
                         if (member != null && member.isOnline()) {
-                            member.sendMessage(format);
+                            member.sendMessage(LegacyComponentSerializer.legacySection().deserialize(format));
                         }
                     }
                 }

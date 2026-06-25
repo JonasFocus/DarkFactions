@@ -11,6 +11,9 @@ import com.darkfactions.DarkFactions;
 import com.darkfactions.models.Faction;
 import com.darkfactions.utils.ConfigManager;
 
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
+
 import org.bukkit.Chunk;
 import org.bukkit.Location;
 import org.bukkit.World;
@@ -284,7 +287,7 @@ public class ClaimManager {
     // ASCII Map - uses config colors and chars
     // ==========================================
 
-    public String getAsciiMap(Player player, int radius) {
+    public Component getAsciiMap(Player player, int radius) {
         int playerChunkX = player.getLocation().getChunk().getX();
         int playerChunkZ = player.getLocation().getChunk().getZ();
         String worldName = player.getWorld().getName();
@@ -303,8 +306,7 @@ public class ClaimManager {
         String wildColor = cfg.getMapColorWilderness().replace('&', '\u00A7');
 
         StringBuilder map = new StringBuilder();
-        map.append(plugin.getMessageUtils().header("Territory Map"));
-        map.append("\n§7");
+        map.append("§7");
 
         Faction playerFaction = plugin.getFactionManager().getPlayerFaction(player.getUniqueId());
 
@@ -340,7 +342,9 @@ public class ClaimManager {
            .append(enemyColor).append(enemyTile).append("§r Enemy  ")
            .append(wildColor).append(wildTile).append("§r Wild");
 
-        return map.toString();
+        return plugin.getMessageUtils().header("Territory Map")
+                .append(Component.newline())
+                .append(LegacyComponentSerializer.legacySection().deserialize(map.toString()));
     }
 
     public boolean isBorderChunk(Chunk chunk, UUID factionId) {

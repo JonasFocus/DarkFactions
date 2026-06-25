@@ -9,7 +9,7 @@ Claim land. Build power. Forge alliances. Raid your rivals.
 <br/>
 
 ![Status](https://img.shields.io/badge/status-revived%20%26%20maintained-brightgreen?style=for-the-badge)
-![Minecraft](https://img.shields.io/badge/Minecraft-1.20.4-blue?style=for-the-badge&logo=minecraft)
+![Minecraft](https://img.shields.io/badge/Minecraft-26.1.2-blue?style=for-the-badge&logo=minecraft)
 ![Paper](https://img.shields.io/badge/Paper-API-orange?style=for-the-badge)
 ![Java](https://img.shields.io/badge/Java-17-red?style=for-the-badge&logo=openjdk)
 
@@ -34,12 +34,12 @@ Claim land. Build power. Forge alliances. Raid your rivals.
 
 **Requirements**
 
-- A Paper (or compatible Spigot) server running Minecraft `1.20.4`
-- Java 17+
+- A Paper (or compatible Spigot) server running Minecraft `26.1.2`
+- Java 25+
 
 **Install**
 
-1. Download the latest `DarkFactions-x.y.z.jar` (or build it yourself, below).
+1. Download the latest `DarkFactions-3.1.jar` (or build it yourself, below).
 2. Drop it into your server's `plugins/` folder.
 3. Restart the server. Configuration generates automatically at `plugins/DarkFactions/config.yml`.
 
@@ -65,7 +65,7 @@ Everything runs through `/f` (aliases: `/faction`, `/fac`, `/factions`).
 mvn clean package
 ```
 
-The compiled plugin lands in `target/DarkFactions-x.y.z.jar`.
+The compiled plugin lands in `target/DarkFactions-3.1.jar`.
 
 ## 📜 License
 

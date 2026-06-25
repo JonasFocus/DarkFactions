@@ -6,13 +6,13 @@
 
     <groupId>com.darkfactions</groupId>
     <artifactId>DarkFactions</artifactId>
-    <version>2.3.1</version>
+    <version>3.1</version>
     <packaging>jar</packaging>
 
     <name>DarkFactions</name>
 
     <properties>
-        <java.version>17</java.version>
+        <java.version>25</java.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
@@ -29,7 +29,7 @@
         <dependency>
             <groupId>io.papermc.paper</groupId>
             <artifactId>paper-api</artifactId>
-            <version>1.20.4-R0.1-SNAPSHOT</version>
+            <version>[26.1.2,26.1.3)</version>
             <scope>provided</scope>
         </dependency>
     </dependencies>
@@ -39,10 +39,9 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.11.0</version>
+                <version>3.13.0</version>
                 <configuration>
-                    <source>17</source>
-                    <target>17</target>
+                    <release>25</release>
                 </configuration>
             </plugin>
         </plugins>

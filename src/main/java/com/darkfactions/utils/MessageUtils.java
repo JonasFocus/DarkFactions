@@ -4,57 +4,54 @@ package com.darkfactions.utils;
 // MessageUtils.java
 // Helper class for formatting messages
 // Makes all the plugin messages look consistent
+// Every helper returns an Adventure Component
 // ==========================================
 
-import org.bukkit.ChatColor;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 
 public class MessageUtils {
 
-    // Color codes used throughout the plugin
-    private static final String PREFIX = ChatColor.DARK_GRAY + "[" + ChatColor.RED + "DarkFactions" + ChatColor.DARK_GRAY + "] " + ChatColor.RESET;
-    private static final String HEADER_COLOR = ChatColor.DARK_RED.toString();
-    private static final String SUCCESS_COLOR = ChatColor.GREEN.toString();
-    private static final String ERROR_COLOR = ChatColor.RED.toString();
-    private static final String INFO_COLOR = ChatColor.GRAY.toString();
-    private static final String WARNING_COLOR = ChatColor.YELLOW.toString();
-    private static final String HELP_COLOR = ChatColor.WHITE.toString();
-
-    // Chat colors
-    private static final String FACTION_CHAT_COLOR = ChatColor.LIGHT_PURPLE.toString();
-    private static final String ALLY_CHAT_COLOR = ChatColor.DARK_AQUA.toString();
+    // The plugin prefix, built once: "[" dark_gray, "DarkFactions" red, "] " dark_gray
+    private static final Component PREFIX = Component.text("[", NamedTextColor.DARK_GRAY)
+            .append(Component.text("DarkFactions", NamedTextColor.RED))
+            .append(Component.text("] ", NamedTextColor.DARK_GRAY));
 
     // ==========================================
     // Message Types
     // ==========================================
 
     // Standard header for section titles
-    public String header(String message) {
-        return PREFIX + HEADER_COLOR + "=== " + message + " ===";
+    public Component header(String message) {
+        return PREFIX.append(Component.text("=== " + message + " ===", NamedTextColor.DARK_RED));
     }
 
     // Success message (green)
-    public String success(String message) {
-        return PREFIX + SUCCESS_COLOR + message;
+    public Component success(String message) {
+        return PREFIX.append(Component.text(message, NamedTextColor.GREEN));
     }
 
     // Error message (red)
-    public String error(String message) {
-        return PREFIX + ERROR_COLOR + message;
+    public Component error(String message) {
+        return PREFIX.append(Component.text(message, NamedTextColor.RED));
     }
 
     // Info message (gray)
-    public String info(String message) {
-        return PREFIX + INFO_COLOR + message;
+    public Component info(String message) {
+        return PREFIX.append(Component.text(message, NamedTextColor.GRAY));
     }
 
     // Warning message (yellow)
-    public String warning(String message) {
-        return PREFIX + WARNING_COLOR + message;
+    public Component warning(String message) {
+        return PREFIX.append(Component.text(message, NamedTextColor.YELLOW));
     }
 
-    // Help/command format
-    public String help(String command, String description) {
-        return INFO_COLOR + command + HELP_COLOR + " - " + description;
+    // Help/command format (no prefix)
+    public Component help(String command, String description) {
+        return Component.text(command, NamedTextColor.GRAY)
+                .append(Component.text(" - ", NamedTextColor.WHITE))
+                .append(Component.text(description, NamedTextColor.WHITE));
     }
 
     // ==========================================
@@ -62,19 +59,25 @@ public class MessageUtils {
     // ==========================================
 
     // Get just the plugin prefix (no extra formatting)
-    public String getChatPrefix() {
+    public Component getChatPrefix() {
         return PREFIX;
     }
 
     // Format a message for faction-only chat
-    public String factionChat(String factionTag, String playerName, String message) {
-        return FACTION_CHAT_COLOR + "[F] " + factionTag + ChatColor.WHITE + playerName +
-                ChatColor.GRAY + ": " + ChatColor.WHITE + message;
+    public Component factionChat(String factionTag, String playerName, String message) {
+        return Component.text("[F] ", NamedTextColor.LIGHT_PURPLE)
+                .append(LegacyComponentSerializer.legacySection().deserialize(factionTag))
+                .append(Component.text(playerName, NamedTextColor.WHITE))
+                .append(Component.text(": ", NamedTextColor.GRAY))
+                .append(Component.text(message, NamedTextColor.WHITE));
     }
 
     // Format a message for ally chat
-    public String allyChat(String factionTag, String playerName, String message) {
-        return ALLY_CHAT_COLOR + "[A] " + factionTag + ChatColor.WHITE + playerName +
-                ChatColor.GRAY + ": " + ChatColor.WHITE + message;
+    public Component allyChat(String factionTag, String playerName, String message) {
+        return Component.text("[A] ", NamedTextColor.DARK_AQUA)
+                .append(LegacyComponentSerializer.legacySection().deserialize(factionTag))
+                .append(Component.text(playerName, NamedTextColor.WHITE))
+                .append(Component.text(": ", NamedTextColor.GRAY))
+                .append(Component.text(message, NamedTextColor.WHITE));
     }
 }

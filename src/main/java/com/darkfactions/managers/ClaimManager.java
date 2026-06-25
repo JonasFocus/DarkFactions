@@ -92,24 +92,22 @@ public class ClaimManager {
     // Claim Operations
     // ==========================================
 
-    // Returns: "success", "already_owned", "already_claimed", "not_connected",
-    //          "too_many", "no_elixir", "wilderness", "disabled_world", "too_close_spawn", "buffer_violation"
-    public String claimChunk(Chunk chunk, UUID factionId) {
+    public ClaimResult claimChunk(Chunk chunk, UUID factionId) {
 
         // Check if claiming is enabled
         if (!plugin.getConfigManager().isClaimEnabled()) {
-            return "disabled";
+            return ClaimResult.DISABLED;
         }
 
         // World blacklist check
         String worldName = chunk.getWorld().getName();
         if (disabledWorlds.contains(worldName)) {
-            return "disabled_world";
+            return ClaimResult.DISABLED_WORLD;
         }
 
         // World whitelist check (if populated, must be in the list)
         if (!whitelistWorlds.isEmpty() && !whitelistWorlds.contains(worldName)) {
-            return "disabled_world";
+            return ClaimResult.DISABLED_WORLD;
         }
 
         // Spawn distance check
@@ -120,7 +118,7 @@ public class ClaimManager {
             int distX = Math.abs(chunk.getX() - spawnChunkX);
             int distZ = Math.abs(chunk.getZ() - spawnChunkZ);
             if (distX < minDistanceFromSpawn && distZ < minDistanceFromSpawn) {
-                return "too_close_spawn";
+                return ClaimResult.TOO_CLOSE_SPAWN;
             }
         }
 
@@ -128,9 +126,9 @@ public class ClaimManager {
         if (isChunkClaimed(chunk)) {
             UUID ownerId = getClaimOwner(chunk);
             if (ownerId != null && ownerId.equals(factionId)) {
-                return "already_owned";
+                return ClaimResult.ALREADY_OWNED;
             }
-            return "already_claimed";
+            return ClaimResult.ALREADY_CLAIMED;
         }
 
         // Buffer zone check - no claiming adjacent to other factions
@@ -140,7 +138,7 @@ public class ClaimManager {
                     if (dx == 0 && dz == 0) continue;
                     UUID neighborOwner = getOwnerAt(chunk.getWorld(), chunk.getX() + dx, chunk.getZ() + dz);
                     if (neighborOwner != null && !neighborOwner.equals(factionId)) {
-                        return "buffer_violation";
+                        return ClaimResult.BUFFER_VIOLATION;
                     }
                 }
             }
@@ -150,19 +148,19 @@ public class ClaimManager {
 
         // Connection check (skip for first claim if firstClaimFree is on)
         if (requireConnection && currentClaims > 0 && !isAdjacentToClaim(chunk, factionId)) {
-            return "not_connected";
+            return ClaimResult.NOT_CONNECTED;
         }
 
         // Claim limit check
         if (currentClaims >= maxClaimsPerFaction) {
-            return "too_many";
+            return ClaimResult.TOO_MANY;
         }
 
         // Elixir cost check (skip for first claim if firstClaimFree is on)
         if (claimCost > 0 && !(firstClaimFree && currentClaims == 0)) {
             Faction faction = plugin.getFactionManager().getFaction(factionId);
             if (faction == null || !faction.removeElixir(claimCost)) {
-                return "no_elixir";
+                return ClaimResult.NO_ELIXIR;
             }
         }
 
@@ -180,7 +178,7 @@ public class ClaimManager {
             }
         }
 
-        return "success";
+        return ClaimResult.SUCCESS;
     }
 
     public boolean unclaimChunk(Chunk chunk) {

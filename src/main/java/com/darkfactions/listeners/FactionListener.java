@@ -8,6 +8,7 @@ package com.darkfactions.listeners;
 
 import com.darkfactions.DarkFactions;
 import com.darkfactions.commands.FactionCommand;
+import com.darkfactions.managers.ClaimResult;
 import com.darkfactions.models.Faction;
 
 import org.bukkit.Chunk;
@@ -390,8 +391,8 @@ public class FactionListener implements Listener {
             if (cmd != null && cmd.isAutoClaiming(player.getUniqueId())) {
                 Faction playerFaction = plugin.getFactionManager().getPlayerFaction(player.getUniqueId());
                 if (playerFaction != null) {
-                    String result = plugin.getClaimManager().claimChunk(toChunk, playerFaction.getFactionId());
-                    if (result.equals("success")) {
+                    ClaimResult result = plugin.getClaimManager().claimChunk(toChunk, playerFaction.getFactionId());
+                    if (result.isSuccess()) {
                         player.sendMessage(plugin.getMessageUtils().success("Auto-claimed this chunk!"));
                     }
                 }

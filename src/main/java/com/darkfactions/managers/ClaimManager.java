@@ -9,6 +9,7 @@ package com.darkfactions.managers;
 
 import com.darkfactions.DarkFactions;
 import com.darkfactions.models.Faction;
+import com.darkfactions.utils.ClaimRules;
 import com.darkfactions.utils.ConfigManager;
 
 import net.kyori.adventure.text.Component;
@@ -79,13 +80,13 @@ public class ClaimManager {
     // ==========================================
 
     private String chunkToKey(Chunk chunk) {
-        return chunk.getWorld().getName() + ":" + chunk.getX() + ":" + chunk.getZ();
+        return ClaimRules.key(chunk.getWorld().getName(), chunk.getX(), chunk.getZ());
     }
 
     private String locationToKey(Location location) {
-        return location.getWorld().getName() + ":" +
-                (location.getBlockX() >> 4) + ":" +
-                (location.getBlockZ() >> 4);
+        return ClaimRules.key(location.getWorld().getName(),
+                location.getBlockX() >> 4,
+                location.getBlockZ() >> 4);
     }
 
     // ==========================================
@@ -132,16 +133,8 @@ public class ClaimManager {
         }
 
         // Buffer zone check - no claiming adjacent to other factions
-        if (claimBufferChunks > 0) {
-            for (int dx = -claimBufferChunks; dx <= claimBufferChunks; dx++) {
-                for (int dz = -claimBufferChunks; dz <= claimBufferChunks; dz++) {
-                    if (dx == 0 && dz == 0) continue;
-                    UUID neighborOwner = getOwnerAt(chunk.getWorld(), chunk.getX() + dx, chunk.getZ() + dz);
-                    if (neighborOwner != null && !neighborOwner.equals(factionId)) {
-                        return ClaimResult.BUFFER_VIOLATION;
-                    }
-                }
-            }
+        if (ClaimRules.violatesBuffer(claimMap, worldName, chunk.getX(), chunk.getZ(), factionId, claimBufferChunks)) {
+            return ClaimResult.BUFFER_VIOLATION;
         }
 
         int currentClaims = factionClaimCount.getOrDefault(factionId, 0);
@@ -247,24 +240,13 @@ public class ClaimManager {
         return claimMap.get(key);
     }
 
-    private UUID getOwnerAt(World world, int x, int z) {
-        return claimMap.get(world.getName() + ":" + x + ":" + z);
-    }
-
     private boolean isAdjacentToClaim(Chunk chunk, UUID factionId) {
-        int x = chunk.getX();
-        int z = chunk.getZ();
-        World world = chunk.getWorld();
-
-        return isChunkOwnedBy(world, x + 1, z, factionId) ||
-               isChunkOwnedBy(world, x - 1, z, factionId) ||
-               isChunkOwnedBy(world, x, z + 1, factionId) ||
-               isChunkOwnedBy(world, x, z - 1, factionId);
+        return ClaimRules.isAdjacentToClaim(claimMap, chunk.getWorld().getName(),
+                chunk.getX(), chunk.getZ(), factionId);
     }
 
     private boolean isChunkOwnedBy(World world, int x, int z, UUID factionId) {
-        UUID owner = getOwnerAt(world, x, z);
-        return owner != null && owner.equals(factionId);
+        return ClaimRules.isOwnedBy(claimMap, world.getName(), x, z, factionId);
     }
 
     public int getClaimCount(UUID factionId) {

@@ -1,0 +1,207 @@
+package com.darkfactions.managers;
+
+// ==========================================
+// ElixirManager.java
+// Elixir = Faction Points (our unique currency)
+// ALL values come from ConfigManager
+// ==========================================
+
+import com.darkfactions.DarkFactions;
+import com.darkfactions.models.Faction;
+import com.darkfactions.utils.ConfigManager;
+
+import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.configuration.file.YamlConfiguration;
+
+import java.io.File;
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
+
+public class ElixirManager {
+
+    private final DarkFactions plugin;
+    private final File dataFile;
+    private final Map<UUID, Double> pendingElixir;
+
+    // Cached config values
+    private double perEnemyKill;
+    private double perAnyKill;
+    private double perRaid;
+    private double raidStealPercent;
+    private double dailyBonus;
+    private boolean autoClaimOnJoin;
+    private boolean transferEnabled;
+    private double transferTaxRate;
+
+    public ElixirManager(DarkFactions plugin) {
+        this.plugin = plugin;
+        this.pendingElixir = new HashMap<>();
+        this.dataFile = new File(plugin.getDataFolder(), "elixir.yml");
+
+        reloadConfig();
+    }
+
+    // ==========================================
+    // Load ALL values from ConfigManager
+    // ==========================================
+    public void reloadConfig() {
+        ConfigManager cfg = plugin.getConfigManager();
+        this.perEnemyKill = cfg.getElixirPerEnemyKill();
+        this.perAnyKill = cfg.getElixirPerAnyKill();
+        this.perRaid = cfg.getElixirPerRaid();
+        this.raidStealPercent = cfg.getElixirRaidStealPercent();
+        this.dailyBonus = cfg.getElixirDailyBonus();
+        this.autoClaimOnJoin = cfg.isElixirAutoClaimOnJoin();
+        this.transferEnabled = cfg.isElixirTransferEnabled();
+        this.transferTaxRate = cfg.getElixirTransferTaxRate();
+    }
+
+    // ==========================================
+    // Balance
+    // ==========================================
+
+    public double getFactionElixir(UUID factionId) {
+        Faction faction = plugin.getFactionManager().getFaction(factionId);
+        return faction == null ? 0.0 : faction.getElixir();
+    }
+
+    public void addFactionElixir(UUID factionId, double amount) {
+        Faction faction = plugin.getFactionManager().getFaction(factionId);
+        if (faction != null) faction.addElixir(amount);
+    }
+
+    public boolean removeFactionElixir(UUID factionId, double amount) {
+        Faction faction = plugin.getFactionManager().getFaction(factionId);
+        return faction != null && faction.removeElixir(amount);
+    }
+
+    // ==========================================
+    // Earning Events
+    // ==========================================
+
+    // Enemy kill
+    public void onEnemyKill(UUID killerFactionId) {
+        addFactionElixir(killerFactionId, perEnemyKill);
+    }
+
+    // Any player kill
+    public void onAnyKill(UUID killerFactionId) {
+        addFactionElixir(killerFactionId, perAnyKill);
+    }
+
+    // Raid
+    public void onSuccessfulRaid(UUID raiderFactionId, UUID victimFactionId) {
+        addFactionElixir(raiderFactionId, perRaid);
+
+        Faction victimFaction = plugin.getFactionManager().getFaction(victimFactionId);
+        if (victimFaction != null) {
+            double stolenAmount = Math.min(perRaid * raidStealPercent, victimFaction.getElixir());
+            victimFaction.removeElixir(stolenAmount);
+        }
+    }
+
+    // Daily login bonus
+    public void onPlayerLogin(UUID playerUuid) {
+        if (autoClaimOnJoin) {
+            // Auto-claim the daily bonus directly to their faction
+            Faction faction = plugin.getFactionManager().getPlayerFaction(playerUuid);
+            if (faction != null) {
+                faction.addElixir(dailyBonus);
+            }
+        } else {
+            // Add to pending - claimed via /f elixir
+            pendingElixir.merge(playerUuid, dailyBonus, Double::sum);
+        }
+    }
+
+    // Claim pending elixir
+    public boolean claimPendingElixir(UUID playerUuid) {
+        if (!pendingElixir.containsKey(playerUuid)) return false;
+
+        Faction faction = plugin.getFactionManager().getPlayerFaction(playerUuid);
+        if (faction == null) return false;
+
+        double amount = pendingElixir.remove(playerUuid);
+        faction.addElixir(amount);
+        return true;
+    }
+
+    // ==========================================
+    // Spending - Shop / Perks
+    // ==========================================
+
+    public boolean boostFactionPower(UUID factionId, double elixirCost, double powerAmount) {
+        if (removeFactionElixir(factionId, elixirCost)) {
+            Faction faction = plugin.getFactionManager().getFaction(factionId);
+            if (faction != null) {
+                faction.addPower(powerAmount);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public boolean increaseMaxPower(UUID factionId, double elixirCost, double additionalMaxPower) {
+        if (removeFactionElixir(factionId, elixirCost)) {
+            Faction faction = plugin.getFactionManager().getFaction(factionId);
+            if (faction != null) {
+                faction.setMaxPower(faction.getMaxPower() + additionalMaxPower);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // Transfer elixir between factions (with tax)
+    public boolean transferElixir(UUID fromFactionId, UUID toFactionId, double amount) {
+        if (!transferEnabled) return false;
+
+        double tax = amount * transferTaxRate;
+        double actualTransfer = amount - tax;
+
+        if (removeFactionElixir(fromFactionId, amount)) {
+            addFactionElixir(toFactionId, actualTransfer);
+            return true;
+        }
+        return false;
+    }
+
+    // ==========================================
+    // Save/Load
+    // ==========================================
+
+    public void saveElixirData() {
+        FileConfiguration config = new YamlConfiguration();
+
+        for (Map.Entry<UUID, Double> entry : pendingElixir.entrySet()) {
+            config.set("pending." + entry.getKey().toString(), entry.getValue());
+        }
+
+        try {
+            config.save(dataFile);
+        } catch (IOException e) {
+            plugin.getLogger().severe("Failed to save elixir data! " + e.getMessage());
+        }
+    }
+
+    public void loadElixirData() {
+        if (!dataFile.exists()) return;
+
+        FileConfiguration config = YamlConfiguration.loadConfiguration(dataFile);
+        if (!config.contains("pending")) return;
+
+        for (String key : config.getConfigurationSection("pending").getKeys(false)) {
+            try {
+                UUID playerUuid = UUID.fromString(key);
+                double amount = config.getDouble("pending." + key);
+                pendingElixir.put(playerUuid, amount);
+            } catch (Exception e) {
+                plugin.getLogger().severe("Failed to load pending elixir for key: " + key);
+            }
+        }
+
+        plugin.getLogger().info("Loaded elixir data - " + pendingElixir.size() + " players have pending elixir!");
+    }
+}

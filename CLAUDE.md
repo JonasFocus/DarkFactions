@@ -37,8 +37,10 @@ Cross-manager access goes through `DarkFactions.getInstance()` getters, not dire
 
 **Models** (`models/`): `Faction` (members, roles, relations, claims, power, settings) and `FactionPlayer` (per-player power/role). User-facing text formatting and color codes are centralized in `MessageUtils`.
 
-## Commit Conventions
+## Commit & PR Conventions
 
-- Use industry-standard, business-professional commit messages. Imperative mood, concise subject line.
-- Do not use em dashes.
+- Subject line: industry-standard conventional prefix (`feat:`, `fix:`, `refactor:`, `chore:`), imperative mood, concise.
+- Body and PR description: write in first person, present tense, like a developer explaining the change to a teammate. Keep it short and concrete, not verbose. No filler headings.
+- Do not use em dashes anywhere.
 - Never add a Claude/AI co-author trailer, "Generated with" lines, or any Claude session links to commits or PRs.
+- End every PR description with a line noting verification on staging, e.g. "Testing on the staging server to confirm the fix."

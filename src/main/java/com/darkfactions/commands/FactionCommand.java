@@ -9,6 +9,7 @@ package com.darkfactions.commands;
 import com.darkfactions.DarkFactions;
 import com.darkfactions.managers.ClaimResult;
 import com.darkfactions.models.Faction;
+import com.darkfactions.utils.FactionNameValidator;
 import com.darkfactions.utils.MessageUtils;
 
 import net.kyori.adventure.text.Component;
@@ -241,17 +242,16 @@ public class FactionCommand implements CommandExecutor {
 
         String factionName = args[1];
 
-        // Name length check - use config values
+        // Validate name length and characters (see FactionNameValidator)
         int minLen = plugin.getConfigManager().getMinFactionNameLength();
         int maxLen = plugin.getConfigManager().getMaxFactionNameLength();
-        if (factionName.length() < minLen || factionName.length() > maxLen) {
+        String allowedPattern = plugin.getConfigManager().getFactionNameAllowedChars();
+        FactionNameValidator.Result nameCheck = FactionNameValidator.validate(factionName, minLen, maxLen, allowedPattern);
+        if (nameCheck == FactionNameValidator.Result.INVALID_LENGTH) {
             player.sendMessage(msg.error("Faction name must be between " + minLen + " and " + maxLen + " characters!"));
             return true;
         }
-
-        // Check for invalid characters using config pattern
-        String allowedPattern = plugin.getConfigManager().getFactionNameAllowedChars();
-        if (!factionName.matches(allowedPattern)) {
+        if (nameCheck == FactionNameValidator.Result.INVALID_CHARS) {
             player.sendMessage(msg.error("Faction name contains invalid characters! Allowed: " + allowedPattern));
             return true;
         }
@@ -774,16 +774,16 @@ public class FactionCommand implements CommandExecutor {
 
         String newName = args[1];
 
-        // Name validation from config
+        // Validate name length and characters (see FactionNameValidator)
         int minLen = plugin.getConfigManager().getMinFactionNameLength();
         int maxLen = plugin.getConfigManager().getMaxFactionNameLength();
-        if (newName.length() < minLen || newName.length() > maxLen) {
+        String allowed = plugin.getConfigManager().getFactionNameAllowedChars();
+        FactionNameValidator.Result nameCheck = FactionNameValidator.validate(newName, minLen, maxLen, allowed);
+        if (nameCheck == FactionNameValidator.Result.INVALID_LENGTH) {
             player.sendMessage(msg.error("Faction name must be between " + minLen + " and " + maxLen + " characters!"));
             return true;
         }
-
-        String allowed = plugin.getConfigManager().getFactionNameAllowedChars();
-        if (!newName.matches(allowed)) {
+        if (nameCheck == FactionNameValidator.Result.INVALID_CHARS) {
             player.sendMessage(msg.error("Faction name can only contain letters, numbers, and underscores!"));
             return true;
         }

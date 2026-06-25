@@ -88,7 +88,7 @@ public class ConfigManager {
     // ==========================================
     public int getMinFactionNameLength() { return config.getInt("faction.min-name-length", 2); }
     public int getMaxFactionNameLength() { return config.getInt("faction.max-name-length", 32); }
-    public String getFactionNameAllowedChars() { return config.getString("faction.name-allowed-chars", "[a-zA-Z0-9_]"); }
+    public String getFactionNameAllowedChars() { return config.getString("faction.name-allowed-chars", FactionNameValidator.DEFAULT_ALLOWED_CHARS); }
     public int getMaxMembers() { return config.getInt("faction.max-members", 30); }
     public double getFactionStartingPower() { return config.getDouble("faction.starting-power", 10.0); }
     public double getFactionStartingMaxPower() { return config.getDouble("faction.starting-max-power", 50.0); }

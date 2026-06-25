@@ -1,0 +1,13 @@
+com/darkfactions/managers/ElixirManager.class
+com/darkfactions/listeners/FactionListener.class
+com/darkfactions/utils/ConfigManager.class
+com/darkfactions/managers/FactionManager.class
+com/darkfactions/utils/MessageUtils.class
+com/darkfactions/models/Faction.class
+com/darkfactions/managers/ClaimManager.class
+com/darkfactions/managers/PowerManager.class
+com/darkfactions/models/FactionPlayer.class
+com/darkfactions/commands/FactionCommand.class
+com/darkfactions/commands/FactionTabCompleter.class
+com/darkfactions/DarkFactions.class
+com/darkfactions/managers/PlayerNameCache.class

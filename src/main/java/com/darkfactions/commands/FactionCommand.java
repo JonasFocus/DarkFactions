@@ -7,6 +7,7 @@ package com.darkfactions.commands;
 // ==========================================
 
 import com.darkfactions.DarkFactions;
+import com.darkfactions.managers.ClaimResult;
 import com.darkfactions.models.Faction;
 import com.darkfactions.utils.MessageUtils;
 
@@ -889,33 +890,15 @@ public class FactionCommand implements CommandExecutor {
         }
 
         Chunk chunk = player.getLocation().getChunk();
-        String result = plugin.getClaimManager().claimChunk(chunk, faction.getFactionId());
+        ClaimResult result = plugin.getClaimManager().claimChunk(chunk, faction.getFactionId());
 
-        switch (result) {
-            case "success":
-                String key = chunk.getWorld().getName() + ":" + chunk.getX() + ":" + chunk.getZ();
-                faction.addClaimedChunk(key);
-                player.sendMessage(msg.success("Chunk claimed for " + faction.getName() + "!"));
-                player.sendMessage(msg.info("Claims: " + plugin.getClaimManager().getClaimCount(faction.getFactionId())));
-                break;
-            case "already_owned":
-                player.sendMessage(msg.error("Your faction already owns this chunk!"));
-                break;
-            case "already_claimed":
-                player.sendMessage(msg.error("This chunk is already claimed by another faction!"));
-                break;
-            case "not_connected":
-                player.sendMessage(msg.error("You must claim land adjacent to your existing territory first!"));
-                break;
-            case "too_many":
-                player.sendMessage(msg.error("Your faction has reached the maximum number of claims!"));
-                break;
-            case "no_elixir":
-                player.sendMessage(msg.error("Your faction doesn't have enough elixir to claim this chunk!"));
-                break;
-            default:
-                player.sendMessage(msg.error("Could not claim this chunk!"));
-                break;
+        if (result.isSuccess()) {
+            String key = chunk.getWorld().getName() + ":" + chunk.getX() + ":" + chunk.getZ();
+            faction.addClaimedChunk(key);
+            player.sendMessage(msg.success("Chunk claimed for " + faction.getName() + "!"));
+            player.sendMessage(msg.info("Claims: " + plugin.getClaimManager().getClaimCount(faction.getFactionId())));
+        } else {
+            player.sendMessage(msg.error(result.getMessage()));
         }
 
         return true;
@@ -1895,11 +1878,11 @@ public class FactionCommand implements CommandExecutor {
                     return true;
                 }
                 Chunk chunk = player.getLocation().getChunk();
-                String result = plugin.getClaimManager().claimChunk(chunk, claimFor.getFactionId());
-                if (result.equals("success")) {
+                ClaimResult result = plugin.getClaimManager().claimChunk(chunk, claimFor.getFactionId());
+                if (result.isSuccess()) {
                     player.sendMessage(msg.success("Chunk claimed for " + claimFor.getName() + "!"));
                 } else {
-                    player.sendMessage(msg.error("Could not claim chunk: " + result));
+                    player.sendMessage(msg.error("Could not claim chunk: " + result.getMessage()));
                 }
                 return true;
 

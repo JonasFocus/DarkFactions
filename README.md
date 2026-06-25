@@ -9,7 +9,7 @@ Claim land. Build power. Forge alliances. Raid your rivals.
 <br/>
 
 ![Status](https://img.shields.io/badge/status-revived%20%26%20maintained-brightgreen?style=for-the-badge)
-![Minecraft](https://img.shields.io/badge/Minecraft-1.20.4-blue?style=for-the-badge&logo=minecraft)
+![Minecraft](https://img.shields.io/badge/Minecraft-26.1.2-blue?style=for-the-badge&logo=minecraft)
 ![Paper](https://img.shields.io/badge/Paper-API-orange?style=for-the-badge)
 ![Java](https://img.shields.io/badge/Java-17-red?style=for-the-badge&logo=openjdk)
 
@@ -34,8 +34,8 @@ Claim land. Build power. Forge alliances. Raid your rivals.
 
 **Requirements**
 
-- A Paper (or compatible Spigot) server running Minecraft `1.20.4`
-- Java 17+
+- A Paper (or compatible Spigot) server running Minecraft `26.1.2`
+- Java 25+
 
 **Install**
 

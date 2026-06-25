@@ -126,9 +126,13 @@ faction:
   # Maximum length for faction names
   max-name-length: 32
 
-  # Allowed characters in faction names (regex pattern)
-  # Change to allow spaces, hyphens, etc.
-  name-allowed-chars: '[a-zA-Z0-9_]'
+  # Allowed characters in faction names. This is a FULL-STRING regex matched
+  # against the whole name (via String.matches), so it must be anchored and
+  # quantified. Use a character class followed by '+', e.g. add a space or
+  # hyphen inside the brackets to allow them: '^[a-zA-Z0-9_ -]+$'.
+  # (A bare class like '[a-zA-Z0-9_]' matches only ONE character and rejects
+  # every real name.)
+  name-allowed-chars: '^[a-zA-Z0-9_]+$'
 
   # Maximum number of members in one faction
   max-members: 30

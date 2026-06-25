@@ -18,14 +18,17 @@ import org.bukkit.configuration.file.YamlConfiguration;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 public class FactionManager {
 
     private final DarkFactions plugin;
+    // Concurrent: the async chat listener reads faction lookups while the main
+    // thread creates, deletes and edits factions from command handlers.
     private final Map<UUID, Faction> factions;
     private final Map<UUID, UUID> playerFactionMap;
     private final Map<UUID, List<UUID>> pendingInvites;
@@ -33,9 +36,9 @@ public class FactionManager {
 
     public FactionManager(DarkFactions plugin) {
         this.plugin = plugin;
-        this.factions = new HashMap<>();
-        this.playerFactionMap = new HashMap<>();
-        this.pendingInvites = new HashMap<>();
+        this.factions = new ConcurrentHashMap<>();
+        this.playerFactionMap = new ConcurrentHashMap<>();
+        this.pendingInvites = new ConcurrentHashMap<>();
         this.dataFile = new File(plugin.getDataFolder(), "factions.yml");
     }
 
@@ -184,7 +187,7 @@ public class FactionManager {
 
     public boolean sendInvite(UUID inviterUuid, UUID factionId, UUID targetUuid) {
         if (playerFactionMap.containsKey(targetUuid)) return false;
-        List<UUID> invites = pendingInvites.computeIfAbsent(targetUuid, k -> new ArrayList<>());
+        List<UUID> invites = pendingInvites.computeIfAbsent(targetUuid, k -> new CopyOnWriteArrayList<>());
         if (!invites.contains(factionId)) invites.add(factionId);
         return true;
     }

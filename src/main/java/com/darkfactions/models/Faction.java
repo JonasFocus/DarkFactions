@@ -10,6 +10,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 public class Faction {
 
@@ -87,10 +88,12 @@ public class Faction {
         this.factionId = UUID.randomUUID();
         this.name = name;
         this.leaderUuid = leaderUuid;
-        this.members = new ArrayList<>();
-        this.officers = new ArrayList<>();
-        this.enemies = new ArrayList<>();
-        this.allies = new ArrayList<>();
+        // Copy-on-write: the async chat listener iterates members/allies while
+        // the main thread adds or removes them from command handlers.
+        this.members = new CopyOnWriteArrayList<>();
+        this.officers = new CopyOnWriteArrayList<>();
+        this.enemies = new CopyOnWriteArrayList<>();
+        this.allies = new CopyOnWriteArrayList<>();
         this.power = 10.0; // Starting power for a new faction
         this.maxPower = 50.0; // Max power cap
         this.creationTime = System.currentTimeMillis();
@@ -109,10 +112,10 @@ public class Faction {
 
     // Empty constructor for loading from config
     public Faction() {
-        this.members = new ArrayList<>();
-        this.officers = new ArrayList<>();
-        this.enemies = new ArrayList<>();
-        this.allies = new ArrayList<>();
+        this.members = new CopyOnWriteArrayList<>();
+        this.officers = new CopyOnWriteArrayList<>();
+        this.enemies = new CopyOnWriteArrayList<>();
+        this.allies = new CopyOnWriteArrayList<>();
         this.claimedChunks = new HashSet<>();
     }
 
@@ -363,7 +366,7 @@ public class Faction {
     }
 
     public void setMembers(List<UUID> members) {
-        this.members = new ArrayList<>(members);
+        this.members = new CopyOnWriteArrayList<>(members);
     }
 
     public List<UUID> getOfficers() {
@@ -371,7 +374,7 @@ public class Faction {
     }
 
     public void setOfficers(List<UUID> officers) {
-        this.officers = new ArrayList<>(officers);
+        this.officers = new CopyOnWriteArrayList<>(officers);
     }
 
     public List<UUID> getEnemies() {
@@ -379,7 +382,7 @@ public class Faction {
     }
 
     public void setEnemies(List<UUID> enemies) {
-        this.enemies = new ArrayList<>(enemies);
+        this.enemies = new CopyOnWriteArrayList<>(enemies);
     }
 
     public List<UUID> getAllies() {
@@ -387,7 +390,7 @@ public class Faction {
     }
 
     public void setAllies(List<UUID> allies) {
-        this.allies = new ArrayList<>(allies);
+        this.allies = new CopyOnWriteArrayList<>(allies);
     }
 
     public String getWorldName() {

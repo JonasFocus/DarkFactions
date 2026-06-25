@@ -1009,12 +1009,8 @@ public class FactionCommand implements CommandExecutor {
             }
         }
 
-        String map = plugin.getClaimManager().getAsciiMap(player, radius);
-
-        // Send it line by line
-        for (String line : map.split("\n")) {
-            player.sendMessage(line);
-        }
+        Component map = plugin.getClaimManager().getAsciiMap(player, radius);
+        player.sendMessage(map);
 
         // Show current chunk info
         Chunk chunk = player.getLocation().getChunk();

@@ -18,9 +18,9 @@ import org.bukkit.configuration.file.YamlConfiguration;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class PowerManager {
 
@@ -47,7 +47,9 @@ public class PowerManager {
 
     public PowerManager(DarkFactions plugin) {
         this.plugin = plugin;
-        this.playerDataMap = new HashMap<>();
+        // Concurrent: the regen task iterates this map asynchronously while the
+        // main thread adds and updates entries from join/death/kill handlers.
+        this.playerDataMap = new ConcurrentHashMap<>();
         this.dataFile = new File(plugin.getDataFolder(), "playerdata.yml");
 
         reloadConfig();
@@ -95,13 +97,12 @@ public class PowerManager {
     // ==========================================
 
     public FactionPlayer getPlayerData(UUID playerUuid) {
-        if (!playerDataMap.containsKey(playerUuid)) {
-            FactionPlayer data = new FactionPlayer(playerUuid);
+        return playerDataMap.computeIfAbsent(playerUuid, uuid -> {
+            FactionPlayer data = new FactionPlayer(uuid);
             data.setPower(defaultPlayerPower);
             data.setMaxPower(maxPlayerPower);
-            playerDataMap.put(playerUuid, data);
-        }
-        return playerDataMap.get(playerUuid);
+            return data;
+        });
     }
 
     // ==========================================

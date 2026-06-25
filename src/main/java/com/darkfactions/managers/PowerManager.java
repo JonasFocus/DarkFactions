@@ -12,6 +12,7 @@ import com.darkfactions.DarkFactions;
 import com.darkfactions.models.Faction;
 import com.darkfactions.models.FactionPlayer;
 import com.darkfactions.utils.ConfigManager;
+import com.darkfactions.utils.PowerRules;
 
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -41,6 +42,9 @@ public class PowerManager {
     private int offlineDecayMaxHours;
     private double minPlayerPower;
     private double powerGainOnMobKill;
+
+    // Per-member power threshold below which a faction becomes raidable.
+    private static final double RAIDABLE_POWER_PER_MEMBER = 0.5;
 
     // Task ID for the power regen scheduler
     private int regenTaskId = -1;
@@ -127,8 +131,7 @@ public class PowerManager {
     // Called when a player dies from PVP
     public void onPlayerDeath(UUID playerUuid) {
         FactionPlayer data = getPlayerData(playerUuid);
-        double newPower = Math.max(data.getPower() - powerLossOnDeath, minPlayerPower);
-        data.setPower(newPower);
+        data.setPower(PowerRules.applyLoss(data.getPower(), powerLossOnDeath, minPlayerPower));
         data.setDeaths(data.getDeaths() + 1);
     }
 
@@ -136,16 +139,14 @@ public class PowerManager {
     public void onPlayerPveDeath(UUID playerUuid) {
         if (powerLossOnPveDeath <= 0) return;
         FactionPlayer data = getPlayerData(playerUuid);
-        double newPower = Math.max(data.getPower() - powerLossOnPveDeath, minPlayerPower);
-        data.setPower(newPower);
+        data.setPower(PowerRules.applyLoss(data.getPower(), powerLossOnPveDeath, minPlayerPower));
         data.setDeaths(data.getDeaths() + 1);
     }
 
     // Called when a player kills another player
     public void onPlayerKill(UUID playerUuid) {
         FactionPlayer data = getPlayerData(playerUuid);
-        double newPower = Math.min(data.getPower() + powerGainOnKill, maxPlayerPower);
-        data.setPower(newPower);
+        data.setPower(PowerRules.applyGain(data.getPower(), powerGainOnKill, maxPlayerPower));
         data.setKills(data.getKills() + 1);
     }
 
@@ -153,8 +154,7 @@ public class PowerManager {
     public void onPlayerMobKill(UUID playerUuid) {
         if (powerGainOnMobKill <= 0) return;
         FactionPlayer data = getPlayerData(playerUuid);
-        double newPower = Math.min(data.getPower() + powerGainOnMobKill, maxPlayerPower);
-        data.setPower(newPower);
+        data.setPower(PowerRules.applyGain(data.getPower(), powerGainOnMobKill, maxPlayerPower));
     }
 
     // Called when a player's faction wins a raid
@@ -170,8 +170,7 @@ public class PowerManager {
     private void regenAllPlayerPower() {
         for (FactionPlayer data : playerDataMap.values()) {
             if (data.getPower() < data.getMaxPower()) {
-                double newPower = Math.min(data.getPower() + powerRegenAmount, data.getMaxPower());
-                data.setPower(newPower);
+                data.setPower(PowerRules.applyGain(data.getPower(), powerRegenAmount, data.getMaxPower()));
             }
         }
     }
@@ -189,12 +188,8 @@ public class PowerManager {
 
         if (offlineHours <= 0) return;
 
-        // Cap at max decay hours
-        long decayHours = Math.min(offlineHours, offlineDecayMaxHours);
-        double decayAmount = decayHours * offlineDecayPerHour;
-
-        double newPower = Math.max(data.getPower() - decayAmount, minPlayerPower);
-        data.setPower(newPower);
+        data.setPower(PowerRules.applyOfflineDecay(data.getPower(), offlineHours,
+                offlineDecayMaxHours, offlineDecayPerHour, minPlayerPower));
     }
 
     // ==========================================
@@ -208,7 +203,7 @@ public class PowerManager {
         double totalPower = getFactionPower(factionId);
         int memberCount = faction.getMemberCount();
 
-        return memberCount > 0 && totalPower < (memberCount * 0.5);
+        return PowerRules.isRaidable(totalPower, memberCount, RAIDABLE_POWER_PER_MEMBER);
     }
 
     // ==========================================

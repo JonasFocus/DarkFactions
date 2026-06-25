@@ -39,7 +39,7 @@ Claim land. Build power. Forge alliances. Raid your rivals.
 
 **Install**
 
-1. Download the latest `DarkFactions-x.y.z.jar` (or build it yourself, below).
+1. Download the latest `DarkFactions-3.1.jar` (or build it yourself, below).
 2. Drop it into your server's `plugins/` folder.
 3. Restart the server. Configuration generates automatically at `plugins/DarkFactions/config.yml`.
 
@@ -65,7 +65,7 @@ Everything runs through `/f` (aliases: `/faction`, `/fac`, `/factions`).
 mvn clean package
 ```
 
-The compiled plugin lands in `target/DarkFactions-x.y.z.jar`.
+The compiled plugin lands in `target/DarkFactions-3.1.jar`.
 
 ## 📜 License
 

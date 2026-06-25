@@ -1391,7 +1391,14 @@ public class FactionCommand implements CommandExecutor {
             motd.append(args[i]).append(" ");
         }
 
-        faction.setMotd(motd.toString().trim());
+        String motdText = motd.toString().trim();
+        int maxMotdLength = plugin.getConfigManager().getMaxMotdLength();
+        if (motdText.length() > maxMotdLength) {
+            player.sendMessage(msg.error("MOTD must be " + maxMotdLength + " characters or less!"));
+            return true;
+        }
+
+        faction.setMotd(motdText);
         player.sendMessage(msg.success("Faction MOTD has been updated!"));
 
         return true;
@@ -1430,7 +1437,14 @@ public class FactionCommand implements CommandExecutor {
             desc.append(args[i]).append(" ");
         }
 
-        faction.setDescription(desc.toString().trim());
+        String descText = desc.toString().trim();
+        int maxDescLength = plugin.getConfigManager().getMaxDescriptionLength();
+        if (descText.length() > maxDescLength) {
+            player.sendMessage(msg.error("Description must be " + maxDescLength + " characters or less!"));
+            return true;
+        }
+
+        faction.setDescription(descText);
         player.sendMessage(msg.success("Faction description has been updated!"));
 
         return true;
@@ -1466,8 +1480,9 @@ public class FactionCommand implements CommandExecutor {
 
         String tag = args[1];
 
-        if (tag.length() > 6) {
-            player.sendMessage(msg.error("Tag must be 6 characters or less!"));
+        int maxTagLength = plugin.getConfigManager().getMaxTagLength();
+        if (tag.length() > maxTagLength) {
+            player.sendMessage(msg.error("Tag must be " + maxTagLength + " characters or less!"));
             return true;
         }
 

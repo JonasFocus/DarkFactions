@@ -267,6 +267,19 @@ public class FactionManager {
     // Save/Load
     // ==========================================
 
+    // Convert a list of stored UUID strings into UUIDs, skipping malformed entries
+    private List<UUID> parseUuidList(List<String> raw) {
+        List<UUID> result = new ArrayList<>();
+        for (String uuidStr : raw) {
+            try {
+                result.add(UUID.fromString(uuidStr));
+            } catch (IllegalArgumentException e) {
+                plugin.getLogger().warning("Skipping malformed UUID: " + uuidStr);
+            }
+        }
+        return result;
+    }
+
     public void saveFactions() {
         FileConfiguration config = new YamlConfiguration();
 
@@ -328,41 +341,38 @@ public class FactionManager {
 
         for (String key : factionSection.getKeys(false)) {
             try {
+                String base = "factions." + key;
+
                 Faction faction = new Faction();
                 faction.setFactionId(UUID.fromString(key));
-                faction.setName(config.getString("factions." + key + ".name"));
-                faction.setLeaderUuid(UUID.fromString(config.getString("factions." + key + ".leader")));
-                faction.setPower(config.getDouble("factions." + key + ".power", plugin.getConfigManager().getFactionStartingPower()));
-                faction.setMaxPower(config.getDouble("factions." + key + ".maxPower", plugin.getConfigManager().getFactionStartingMaxPower()));
-                faction.setElixir(config.getDouble("factions." + key + ".elixir", 0.0));
-                faction.setOpen(config.getBoolean("factions." + key + ".open", plugin.getConfigManager().isDefaultOpen()));
-                faction.setCreationTime(config.getLong("factions." + key + ".creationTime", System.currentTimeMillis()));
-                faction.setMotd(config.getString("factions." + key + ".motd", ""));
-                faction.setDescription(config.getString("factions." + key + ".description", ""));
-                faction.setTag(config.getString("factions." + key + ".tag", ""));
-                faction.setPvpEnabled(config.getBoolean("factions." + key + ".pvpEnabled", plugin.getConfigManager().isDefaultPvp()));
-                faction.setTntEnabled(config.getBoolean("factions." + key + ".tntEnabled", plugin.getConfigManager().isDefaultTnt()));
+                faction.setName(config.getString(base + ".name"));
+                faction.setLeaderUuid(UUID.fromString(config.getString(base + ".leader")));
+                faction.setPower(config.getDouble(base + ".power", plugin.getConfigManager().getFactionStartingPower()));
+                faction.setMaxPower(config.getDouble(base + ".maxPower", plugin.getConfigManager().getFactionStartingMaxPower()));
+                faction.setElixir(config.getDouble(base + ".elixir", 0.0));
+                faction.setOpen(config.getBoolean(base + ".open", plugin.getConfigManager().isDefaultOpen()));
+                faction.setCreationTime(config.getLong(base + ".creationTime", System.currentTimeMillis()));
+                faction.setMotd(config.getString(base + ".motd", ""));
+                faction.setDescription(config.getString(base + ".description", ""));
+                faction.setTag(config.getString(base + ".tag", ""));
+                faction.setPvpEnabled(config.getBoolean(base + ".pvpEnabled", plugin.getConfigManager().isDefaultPvp()));
+                faction.setTntEnabled(config.getBoolean(base + ".tntEnabled", plugin.getConfigManager().isDefaultTnt()));
 
-                for (String uuidStr : config.getStringList("factions." + key + ".members")) {
-                    faction.getMembers().add(UUID.fromString(uuidStr));
-                }
-                for (String uuidStr : config.getStringList("factions." + key + ".officers")) {
-                    faction.getOfficers().add(UUID.fromString(uuidStr));
-                }
-                for (String uuidStr : config.getStringList("factions." + key + ".enemies")) {
-                    faction.getEnemies().add(UUID.fromString(uuidStr));
-                }
-                for (String uuidStr : config.getStringList("factions." + key + ".allies")) {
-                    faction.getAllies().add(UUID.fromString(uuidStr));
-                }
+                // The list getters return defensive copies, so write through the
+                // setters which replace the backing lists. Mutating the getters
+                // would silently discard every member, officer, enemy and ally.
+                faction.setMembers(parseUuidList(config.getStringList(base + ".members")));
+                faction.setOfficers(parseUuidList(config.getStringList(base + ".officers")));
+                faction.setEnemies(parseUuidList(config.getStringList(base + ".enemies")));
+                faction.setAllies(parseUuidList(config.getStringList(base + ".allies")));
 
-                if (config.contains("factions." + key + ".home.world")) {
-                    faction.setWorldName(config.getString("factions." + key + ".home.world"));
-                    faction.setHomeX(config.getDouble("factions." + key + ".home.x"));
-                    faction.setHomeY(config.getDouble("factions." + key + ".home.y"));
-                    faction.setHomeZ(config.getDouble("factions." + key + ".home.z"));
-                    faction.setHomeYaw((float) config.getDouble("factions." + key + ".home.yaw"));
-                    faction.setHomePitch((float) config.getDouble("factions." + key + ".home.pitch"));
+                if (config.contains(base + ".home.world")) {
+                    faction.setWorldName(config.getString(base + ".home.world"));
+                    faction.setHomeX(config.getDouble(base + ".home.x"));
+                    faction.setHomeY(config.getDouble(base + ".home.y"));
+                    faction.setHomeZ(config.getDouble(base + ".home.z"));
+                    faction.setHomeYaw((float) config.getDouble(base + ".home.yaw"));
+                    faction.setHomePitch((float) config.getDouble(base + ".home.pitch"));
                 }
 
                 factions.put(faction.getFactionId(), faction);

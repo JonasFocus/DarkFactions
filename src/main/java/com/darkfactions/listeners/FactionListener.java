@@ -505,7 +505,7 @@ public class FactionListener implements Listener {
         }
 
         // Check the command handler for chat mode
-        FactionCommand cmd = (FactionCommand) plugin.getCommand("faction").getExecutor();
+        FactionCommand cmd = plugin.getFactionCommand();
         String chatMode = cmd != null ? cmd.getChatMode(playerUuid) : null;
 
         if (chatMode == null) {

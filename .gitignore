@@ -1,0 +1,16 @@
+# Internal agent guidance, not for public repo
+CLAUDE.md
+
+# Build output
+target/
+
+# IDE / editor
+.idea/
+*.iml
+.vscode/
+.settings/
+.classpath
+.project
+
+# OS
+.DS_Store

@@ -6,11 +6,12 @@ package com.darkfactions.models;
 // ==========================================
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 public class Faction {
 
@@ -23,17 +24,14 @@ public class Faction {
     // Who created the faction - they are the leader by default
     private UUID leaderUuid;
 
-    // List of all members in the faction by their UUID
-    private List<UUID> members;
-
-    // List of officers (can invite/kick but not disband)
-    private List<UUID> officers;
-
-    // List of enemy factions
-    private List<UUID> enemies;
-
-    // List of allied factions
-    private List<UUID> allies;
+    // Members, officers, enemies and allies keyed by UUID. Stored as sets so
+    // membership tests are O(1) and duplicates can't sneak in, wrapped in a
+    // synchronized LinkedHashSet to keep insertion order and let the async chat
+    // listener safely snapshot them while the main thread mutates.
+    private Set<UUID> members;
+    private Set<UUID> officers;
+    private Set<UUID> enemies;
+    private Set<UUID> allies;
 
     // Where the faction home is located (null if not set)
     private String worldName;
@@ -88,12 +86,10 @@ public class Faction {
         this.factionId = UUID.randomUUID();
         this.name = name;
         this.leaderUuid = leaderUuid;
-        // Copy-on-write: the async chat listener iterates members/allies while
-        // the main thread adds or removes them from command handlers.
-        this.members = new CopyOnWriteArrayList<>();
-        this.officers = new CopyOnWriteArrayList<>();
-        this.enemies = new CopyOnWriteArrayList<>();
-        this.allies = new CopyOnWriteArrayList<>();
+        this.members = newMemberSet();
+        this.officers = newMemberSet();
+        this.enemies = newMemberSet();
+        this.allies = newMemberSet();
         this.power = 10.0; // Starting power for a new faction
         this.maxPower = 50.0; // Max power cap
         this.creationTime = System.currentTimeMillis();
@@ -112,11 +108,24 @@ public class Faction {
 
     // Empty constructor for loading from config
     public Faction() {
-        this.members = new CopyOnWriteArrayList<>();
-        this.officers = new CopyOnWriteArrayList<>();
-        this.enemies = new CopyOnWriteArrayList<>();
-        this.allies = new CopyOnWriteArrayList<>();
+        this.members = newMemberSet();
+        this.officers = newMemberSet();
+        this.enemies = newMemberSet();
+        this.allies = newMemberSet();
         this.claimedChunks = new HashSet<>();
+    }
+
+    // Order-preserving, thread-safe set used for members/officers/enemies/allies.
+    private static Set<UUID> newMemberSet() {
+        return Collections.synchronizedSet(new LinkedHashSet<>());
+    }
+
+    // Snapshot a member set under its own lock so the async chat listener can
+    // copy it safely while the main thread mutates the original.
+    private static List<UUID> snapshot(Set<UUID> set) {
+        synchronized (set) {
+            return new ArrayList<>(set);
+        }
     }
 
     // ==========================================
@@ -125,9 +134,7 @@ public class Faction {
 
     // Adds a player to the faction
     public void addMember(UUID playerUuid) {
-        if (!members.contains(playerUuid)) {
-            members.add(playerUuid);
-        }
+        members.add(playerUuid);
     }
 
     // Removes a player from the faction
@@ -147,7 +154,7 @@ public class Faction {
 
     // Promote a member to officer
     public void promoteToOfficer(UUID playerUuid) {
-        if (members.contains(playerUuid) && !officers.contains(playerUuid)) {
+        if (members.contains(playerUuid)) {
             officers.add(playerUuid);
         }
     }
@@ -218,9 +225,7 @@ public class Faction {
     // ==========================================
 
     public void addEnemy(UUID factionId) {
-        if (!enemies.contains(factionId)) {
-            enemies.add(factionId);
-        }
+        enemies.add(factionId);
     }
 
     public void removeEnemy(UUID factionId) {
@@ -232,9 +237,7 @@ public class Faction {
     }
 
     public void addAlly(UUID factionId) {
-        if (!allies.contains(factionId)) {
-            allies.add(factionId);
-        }
+        allies.add(factionId);
     }
 
     public void removeAlly(UUID factionId) {
@@ -362,35 +365,35 @@ public class Faction {
     }
 
     public List<UUID> getMembers() {
-        return new ArrayList<>(members);
+        return snapshot(members);
     }
 
     public void setMembers(List<UUID> members) {
-        this.members = new CopyOnWriteArrayList<>(members);
+        this.members = Collections.synchronizedSet(new LinkedHashSet<>(members));
     }
 
     public List<UUID> getOfficers() {
-        return new ArrayList<>(officers);
+        return snapshot(officers);
     }
 
     public void setOfficers(List<UUID> officers) {
-        this.officers = new CopyOnWriteArrayList<>(officers);
+        this.officers = Collections.synchronizedSet(new LinkedHashSet<>(officers));
     }
 
     public List<UUID> getEnemies() {
-        return new ArrayList<>(enemies);
+        return snapshot(enemies);
     }
 
     public void setEnemies(List<UUID> enemies) {
-        this.enemies = new CopyOnWriteArrayList<>(enemies);
+        this.enemies = Collections.synchronizedSet(new LinkedHashSet<>(enemies));
     }
 
     public List<UUID> getAllies() {
-        return new ArrayList<>(allies);
+        return snapshot(allies);
     }
 
     public void setAllies(List<UUID> allies) {
-        this.allies = new CopyOnWriteArrayList<>(allies);
+        this.allies = Collections.synchronizedSet(new LinkedHashSet<>(allies));
     }
 
     public String getWorldName() {

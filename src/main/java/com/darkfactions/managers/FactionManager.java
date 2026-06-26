@@ -9,6 +9,7 @@ package com.darkfactions.managers;
 import com.darkfactions.DarkFactions;
 import com.darkfactions.models.Faction;
 import com.darkfactions.utils.ConfigManager;
+import com.darkfactions.utils.YamlStore;
 
 import org.bukkit.Location;
 import org.bukkit.configuration.ConfigurationSection;
@@ -16,7 +17,6 @@ import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 
 import java.io.File;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -65,6 +65,7 @@ public class FactionManager {
         factions.put(faction.getFactionId(), faction);
         playerFactionMap.put(leaderUuid, faction.getFactionId());
 
+        plugin.requestSave();
         return faction;
     }
 
@@ -82,6 +83,7 @@ public class FactionManager {
         pendingInvites.values().forEach(list -> list.remove(factionId));
         factions.remove(factionId);
 
+        plugin.requestSave();
         return true;
     }
 
@@ -114,6 +116,7 @@ public class FactionManager {
         if (faction == null) return false;
         if (isFactionNameTaken(newName) && !faction.getName().equalsIgnoreCase(newName)) return false;
         faction.setName(newName);
+        plugin.requestSave();
         return true;
     }
 
@@ -133,6 +136,7 @@ public class FactionManager {
         playerFactionMap.put(playerUuid, factionId);
         pendingInvites.remove(playerUuid);
 
+        plugin.requestSave();
         return true;
     }
 
@@ -148,6 +152,7 @@ public class FactionManager {
             deleteFaction(faction.getFactionId());
         }
 
+        plugin.requestSave();
         return true;
     }
 
@@ -162,6 +167,7 @@ public class FactionManager {
         if (maxOfficers > 0 && faction.getOfficers().size() >= maxOfficers) return false;
 
         faction.promoteToOfficer(playerUuid);
+        plugin.requestSave();
         return true;
     }
 
@@ -170,6 +176,7 @@ public class FactionManager {
         if (faction == null) return false;
         if (!faction.isOfficer(playerUuid)) return false;
         faction.demoteFromOfficer(playerUuid);
+        plugin.requestSave();
         return true;
     }
 
@@ -178,6 +185,7 @@ public class FactionManager {
         if (faction == null) return false;
         if (!faction.isMember(newLeaderUuid)) return false;
         faction.setLeaderUuid(newLeaderUuid);
+        plugin.requestSave();
         return true;
     }
 
@@ -226,6 +234,7 @@ public class FactionManager {
         faction.setHomeZ(location.getZ());
         faction.setHomeYaw(location.getYaw());
         faction.setHomePitch(location.getPitch());
+        plugin.requestSave();
     }
 
     public Location getFactionHome(UUID factionId) {
@@ -328,17 +337,11 @@ public class FactionManager {
             }
         }
 
-        try {
-            config.save(dataFile);
-        } catch (IOException e) {
-            plugin.getLogger().severe("Could not save faction data! " + e.getMessage());
-        }
+        YamlStore.save(config, dataFile, plugin.getLogger());
     }
 
     public void loadFactions() {
-        if (!dataFile.exists()) return;
-
-        FileConfiguration config = YamlConfiguration.loadConfiguration(dataFile);
+        FileConfiguration config = YamlStore.load(dataFile, plugin.getLogger());
         ConfigurationSection factionSection = config.getConfigurationSection("factions");
         if (factionSection == null) return;
 

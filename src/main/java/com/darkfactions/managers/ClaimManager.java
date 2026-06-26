@@ -11,6 +11,7 @@ import com.darkfactions.DarkFactions;
 import com.darkfactions.models.Faction;
 import com.darkfactions.utils.ClaimRules;
 import com.darkfactions.utils.ConfigManager;
+import com.darkfactions.utils.YamlStore;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
@@ -23,7 +24,6 @@ import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 
 import java.io.File;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -171,6 +171,7 @@ public class ClaimManager {
             }
         }
 
+        plugin.requestSave();
         return ClaimResult.SUCCESS;
     }
 
@@ -193,6 +194,7 @@ public class ClaimManager {
                 }
             }
 
+            plugin.requestSave();
             return true;
         }
 
@@ -213,6 +215,9 @@ public class ClaimManager {
 
         factionClaimCount.remove(factionId);
 
+        if (!toRemove.isEmpty()) {
+            plugin.requestSave();
+        }
         return toRemove.size();
     }
 
@@ -360,17 +365,11 @@ public class ClaimManager {
             config.set("claims." + factionIdStr, claimList);
         }
 
-        try {
-            config.save(dataFile);
-        } catch (IOException e) {
-            plugin.getLogger().severe("Failed to save claim data! " + e.getMessage());
-        }
+        YamlStore.save(config, dataFile, plugin.getLogger());
     }
 
     public void loadClaims() {
-        if (!dataFile.exists()) return;
-
-        FileConfiguration config = YamlConfiguration.loadConfiguration(dataFile);
+        FileConfiguration config = YamlStore.load(dataFile, plugin.getLogger());
         if (!config.contains("claims")) return;
 
         int totalClaims = 0;

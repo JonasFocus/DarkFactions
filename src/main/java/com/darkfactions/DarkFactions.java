@@ -39,6 +39,10 @@ public class DarkFactions extends JavaPlugin {
     // Task ID for the periodic auto-save scheduler (-1 when not running)
     private int autoSaveTaskId = -1;
 
+    // Debounced "save soon" task: coalesces bursts of mutations into one save.
+    private int pendingSaveTaskId = -1;
+    private static final long SAVE_DEBOUNCE_TICKS = 60L; // ~3 seconds
+
     // Called when the server enables/loads our plugin
     @Override
     public void onEnable() {
@@ -126,8 +130,26 @@ public class DarkFactions extends JavaPlugin {
         }, ticks, ticks).getTaskId();
     }
 
-    // Persist every manager's data. Shared by auto-save and shutdown.
-    private void saveAll() {
+    // ==========================================
+    // Request a save "soon" after a high-value mutation (faction create/disband/
+    // rename, claim/unclaim, elixir change, leadership transfer). Coalesces a
+    // burst of changes into a single debounced save so a crash loses at most a
+    // few seconds of data instead of up to a full auto-save interval. Runs on
+    // the main thread, consistent with the rest of our persistence.
+    // ==========================================
+    public void requestSave() {
+        if (pendingSaveTaskId != -1 || !isEnabled()) {
+            return; // a save is already queued, or we're shutting down
+        }
+        pendingSaveTaskId = getServer().getScheduler().runTaskLater(this, () -> {
+            pendingSaveTaskId = -1;
+            saveAll();
+        }, SAVE_DEBOUNCE_TICKS).getTaskId();
+    }
+
+    // Persist every manager's data. Shared by auto-save, the debounced
+    // requestSave, and shutdown.
+    public void saveAll() {
         if (playerNameCache != null) {
             playerNameCache.saveNames();
         }
@@ -153,10 +175,15 @@ public class DarkFactions extends JavaPlugin {
         // Dont want to lose faction data!
         getLogger().info("DarkFactions is shutting down... saving data...");
 
-        // Stop the auto-save task so it can't fire mid-shutdown
+        // Stop the auto-save and any pending debounced save so they can't fire
+        // mid-shutdown; the final saveAll below persists everything anyway.
         if (autoSaveTaskId != -1) {
             getServer().getScheduler().cancelTask(autoSaveTaskId);
             autoSaveTaskId = -1;
+        }
+        if (pendingSaveTaskId != -1) {
+            getServer().getScheduler().cancelTask(pendingSaveTaskId);
+            pendingSaveTaskId = -1;
         }
 
         saveAll();

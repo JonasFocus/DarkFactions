@@ -7,13 +7,13 @@ package com.darkfactions.managers;
 // ==========================================
 
 import com.darkfactions.DarkFactions;
+import com.darkfactions.utils.YamlStore;
 
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 
 import java.io.File;
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -109,22 +109,15 @@ public class PlayerNameCache {
             config.set(entry.getKey().toString(), entry.getValue());
         }
 
-        try {
-            config.save(dataFile);
-        } catch (IOException e) {
-            plugin.getLogger().severe("Failed to save player name cache! " + e.getMessage());
-        }
+        YamlStore.save(config, dataFile, plugin.getLogger());
     }
 
     // Load names from disk
     public void loadNames() {
-        if (!dataFile.exists()) {
-            return;
-        }
-
-        FileConfiguration config = YamlConfiguration.loadConfiguration(dataFile);
+        FileConfiguration config = YamlStore.load(dataFile, plugin.getLogger());
 
         for (String key : config.getKeys(false)) {
+            if (key.equals(YamlStore.VERSION_KEY)) continue; // skip the schema-version marker
             try {
                 UUID uuid = UUID.fromString(key);
                 String name = config.getString(key);

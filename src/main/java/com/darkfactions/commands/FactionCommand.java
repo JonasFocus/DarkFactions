@@ -235,10 +235,7 @@ public class FactionCommand implements CommandExecutor {
             return true;
         }
 
-        if (args.length < 2) {
-            player.sendMessage(msg.error("Usage: /f create <name>"));
-            return true;
-        }
+        if (!requireArgs(player, args, 2, "/f create <name>")) return true;
 
         String factionName = args[1];
 
@@ -280,12 +277,8 @@ public class FactionCommand implements CommandExecutor {
     // ==========================================
     private boolean handleDisband(Player player) {
 
-        Faction faction = plugin.getFactionManager().getPlayerFaction(player.getUniqueId());
-
-        if (faction == null) {
-            player.sendMessage(msg.error("You're not in a faction!"));
-            return true;
-        }
+        Faction faction = requireFaction(player);
+        if (faction == null) return true;
 
         if (!faction.isLeader(player.getUniqueId())) {
             player.sendMessage(msg.error("Only the faction leader can disband the faction!"));
@@ -319,17 +312,10 @@ public class FactionCommand implements CommandExecutor {
     // ==========================================
     private boolean handleInvite(Player player, String[] args) {
 
-        if (args.length < 2) {
-            player.sendMessage(msg.error("Usage: /f invite <player>"));
-            return true;
-        }
+        if (!requireArgs(player, args, 2, "/f invite <player>")) return true;
 
-        Faction faction = plugin.getFactionManager().getPlayerFaction(player.getUniqueId());
-
-        if (faction == null) {
-            player.sendMessage(msg.error("You're not in a faction!"));
-            return true;
-        }
+        Faction faction = requireFaction(player);
+        if (faction == null) return true;
 
         if (!faction.isLeaderOrOfficer(player.getUniqueId())) {
             player.sendMessage(msg.error("Only the leader and officers can invite players!"));
@@ -371,17 +357,10 @@ public class FactionCommand implements CommandExecutor {
     // ==========================================
     private boolean handleUninvite(Player player, String[] args) {
 
-        if (args.length < 2) {
-            player.sendMessage(msg.error("Usage: /f uninvite <player>"));
-            return true;
-        }
+        if (!requireArgs(player, args, 2, "/f uninvite <player>")) return true;
 
-        Faction faction = plugin.getFactionManager().getPlayerFaction(player.getUniqueId());
-
-        if (faction == null) {
-            player.sendMessage(msg.error("You're not in a faction!"));
-            return true;
-        }
+        Faction faction = requireFaction(player);
+        if (faction == null) return true;
 
         if (!faction.isLeaderOrOfficer(player.getUniqueId())) {
             player.sendMessage(msg.error("Only the leader and officers can manage invites!"));
@@ -412,10 +391,7 @@ public class FactionCommand implements CommandExecutor {
     // ==========================================
     private boolean handleAccept(Player player, String[] args) {
 
-        if (args.length < 2) {
-            player.sendMessage(msg.error("Usage: /f accept <faction>"));
-            return true;
-        }
+        if (!requireArgs(player, args, 2, "/f accept <faction>")) return true;
 
         // Check theyre not already in a faction
         if (plugin.getFactionManager().getPlayerFaction(player.getUniqueId()) != null) {
@@ -475,10 +451,7 @@ public class FactionCommand implements CommandExecutor {
     // ==========================================
     private boolean handleDeny(Player player, String[] args) {
 
-        if (args.length < 2) {
-            player.sendMessage(msg.error("Usage: /f deny <faction>"));
-            return true;
-        }
+        if (!requireArgs(player, args, 2, "/f deny <faction>")) return true;
 
         Faction faction = plugin.getFactionManager().getFactionByName(args[1]);
         if (faction == null) {
@@ -529,17 +502,10 @@ public class FactionCommand implements CommandExecutor {
     // ==========================================
     private boolean handleKick(Player player, String[] args) {
 
-        if (args.length < 2) {
-            player.sendMessage(msg.error("Usage: /f kick <player>"));
-            return true;
-        }
+        if (!requireArgs(player, args, 2, "/f kick <player>")) return true;
 
-        Faction faction = plugin.getFactionManager().getPlayerFaction(player.getUniqueId());
-
-        if (faction == null) {
-            player.sendMessage(msg.error("You're not in a faction!"));
-            return true;
-        }
+        Faction faction = requireFaction(player);
+        if (faction == null) return true;
 
         if (!faction.isLeaderOrOfficer(player.getUniqueId())) {
             player.sendMessage(msg.error("Only the leader and officers can kick players!"));
@@ -588,12 +554,8 @@ public class FactionCommand implements CommandExecutor {
     // ==========================================
     private boolean handleLeave(Player player) {
 
-        Faction faction = plugin.getFactionManager().getPlayerFaction(player.getUniqueId());
-
-        if (faction == null) {
-            player.sendMessage(msg.error("You're not in a faction!"));
-            return true;
-        }
+        Faction faction = requireFaction(player);
+        if (faction == null) return true;
 
         if (faction.isLeader(player.getUniqueId())) {
             player.sendMessage(msg.error("You are the leader! Use /f leader <player> to transfer leadership first."));
@@ -615,17 +577,10 @@ public class FactionCommand implements CommandExecutor {
     // ==========================================
     private boolean handlePromote(Player player, String[] args) {
 
-        if (args.length < 2) {
-            player.sendMessage(msg.error("Usage: /f promote <player>"));
-            return true;
-        }
+        if (!requireArgs(player, args, 2, "/f promote <player>")) return true;
 
-        Faction faction = plugin.getFactionManager().getPlayerFaction(player.getUniqueId());
-
-        if (faction == null) {
-            player.sendMessage(msg.error("You're not in a faction!"));
-            return true;
-        }
+        Faction faction = requireFaction(player);
+        if (faction == null) return true;
 
         if (!faction.isLeader(player.getUniqueId())) {
             player.sendMessage(msg.error("Only the faction leader can promote members!"));
@@ -660,17 +615,10 @@ public class FactionCommand implements CommandExecutor {
     // ==========================================
     private boolean handleDemote(Player player, String[] args) {
 
-        if (args.length < 2) {
-            player.sendMessage(msg.error("Usage: /f demote <player>"));
-            return true;
-        }
+        if (!requireArgs(player, args, 2, "/f demote <player>")) return true;
 
-        Faction faction = plugin.getFactionManager().getPlayerFaction(player.getUniqueId());
-
-        if (faction == null) {
-            player.sendMessage(msg.error("You're not in a faction!"));
-            return true;
-        }
+        Faction faction = requireFaction(player);
+        if (faction == null) return true;
 
         if (!faction.isLeader(player.getUniqueId())) {
             player.sendMessage(msg.error("Only the faction leader can demote officers!"));
@@ -705,17 +653,10 @@ public class FactionCommand implements CommandExecutor {
     // ==========================================
     private boolean handleLeader(Player player, String[] args) {
 
-        if (args.length < 2) {
-            player.sendMessage(msg.error("Usage: /f leader <player>"));
-            return true;
-        }
+        if (!requireArgs(player, args, 2, "/f leader <player>")) return true;
 
-        Faction faction = plugin.getFactionManager().getPlayerFaction(player.getUniqueId());
-
-        if (faction == null) {
-            player.sendMessage(msg.error("You're not in a faction!"));
-            return true;
-        }
+        Faction faction = requireFaction(player);
+        if (faction == null) return true;
 
         if (!faction.isLeader(player.getUniqueId())) {
             player.sendMessage(msg.error("Only the faction leader can transfer leadership!"));
@@ -755,17 +696,10 @@ public class FactionCommand implements CommandExecutor {
     // ==========================================
     private boolean handleRename(Player player, String[] args) {
 
-        if (args.length < 2) {
-            player.sendMessage(msg.error("Usage: /f rename <name>"));
-            return true;
-        }
+        if (!requireArgs(player, args, 2, "/f rename <name>")) return true;
 
-        Faction faction = plugin.getFactionManager().getPlayerFaction(player.getUniqueId());
-
-        if (faction == null) {
-            player.sendMessage(msg.error("You're not in a faction!"));
-            return true;
-        }
+        Faction faction = requireFaction(player);
+        if (faction == null) return true;
 
         if (!faction.isLeader(player.getUniqueId())) {
             player.sendMessage(msg.error("Only the faction leader can rename the faction!"));
@@ -806,12 +740,8 @@ public class FactionCommand implements CommandExecutor {
     // ==========================================
     private boolean handleSetHome(Player player) {
 
-        Faction faction = plugin.getFactionManager().getPlayerFaction(player.getUniqueId());
-
-        if (faction == null) {
-            player.sendMessage(msg.error("You're not in a faction!"));
-            return true;
-        }
+        Faction faction = requireFaction(player);
+        if (faction == null) return true;
 
         if (!faction.isLeaderOrOfficer(player.getUniqueId())) {
             player.sendMessage(msg.error("Only the leader and officers can set the faction home!"));
@@ -830,12 +760,8 @@ public class FactionCommand implements CommandExecutor {
     // ==========================================
     private boolean handleHome(Player player) {
 
-        Faction faction = plugin.getFactionManager().getPlayerFaction(player.getUniqueId());
-
-        if (faction == null) {
-            player.sendMessage(msg.error("You're not in a faction!"));
-            return true;
-        }
+        Faction faction = requireFaction(player);
+        if (faction == null) return true;
 
         if (!faction.hasHome()) {
             player.sendMessage(msg.error("Your faction hasn't set a home yet! Use /f sethome."));
@@ -877,12 +803,8 @@ public class FactionCommand implements CommandExecutor {
     // ==========================================
     private boolean handleClaim(Player player) {
 
-        Faction faction = plugin.getFactionManager().getPlayerFaction(player.getUniqueId());
-
-        if (faction == null) {
-            player.sendMessage(msg.error("You're not in a faction!"));
-            return true;
-        }
+        Faction faction = requireFaction(player);
+        if (faction == null) return true;
 
         if (!faction.isLeaderOrOfficer(player.getUniqueId())) {
             player.sendMessage(msg.error("Only the leader and officers can claim land!"));
@@ -910,12 +832,8 @@ public class FactionCommand implements CommandExecutor {
     // ==========================================
     private boolean handleUnclaim(Player player) {
 
-        Faction faction = plugin.getFactionManager().getPlayerFaction(player.getUniqueId());
-
-        if (faction == null) {
-            player.sendMessage(msg.error("You're not in a faction!"));
-            return true;
-        }
+        Faction faction = requireFaction(player);
+        if (faction == null) return true;
 
         if (!faction.isLeaderOrOfficer(player.getUniqueId())) {
             player.sendMessage(msg.error("Only the leader and officers can unclaim land!"));
@@ -950,12 +868,8 @@ public class FactionCommand implements CommandExecutor {
     // ==========================================
     private boolean handleUnclaimAll(Player player) {
 
-        Faction faction = plugin.getFactionManager().getPlayerFaction(player.getUniqueId());
-
-        if (faction == null) {
-            player.sendMessage(msg.error("You're not in a faction!"));
-            return true;
-        }
+        Faction faction = requireFaction(player);
+        if (faction == null) return true;
 
         if (!faction.isLeader(player.getUniqueId())) {
             player.sendMessage(msg.error("Only the faction leader can unclaim all land!"));
@@ -1018,12 +932,8 @@ public class FactionCommand implements CommandExecutor {
     // ==========================================
     private boolean handleAutoClaim(Player player) {
 
-        Faction faction = plugin.getFactionManager().getPlayerFaction(player.getUniqueId());
-
-        if (faction == null) {
-            player.sendMessage(msg.error("You're not in a faction!"));
-            return true;
-        }
+        Faction faction = requireFaction(player);
+        if (faction == null) return true;
 
         if (!faction.isLeaderOrOfficer(player.getUniqueId())) {
             player.sendMessage(msg.error("Only the leader and officers can use auto-claim!"));
@@ -1138,10 +1048,7 @@ public class FactionCommand implements CommandExecutor {
     // ==========================================
     private boolean handleShow(Player player, String[] args) {
 
-        if (args.length < 2) {
-            player.sendMessage(msg.error("Usage: /f show <faction>"));
-            return true;
-        }
+        if (!requireArgs(player, args, 2, "/f show <faction>")) return true;
 
         Faction faction = plugin.getFactionManager().getFactionByName(args[1]);
 
@@ -1265,12 +1172,8 @@ public class FactionCommand implements CommandExecutor {
     // ==========================================
     private boolean handlePower(Player player) {
 
-        Faction faction = plugin.getFactionManager().getPlayerFaction(player.getUniqueId());
-
-        if (faction == null) {
-            player.sendMessage(msg.error("You're not in a faction!"));
-            return true;
-        }
+        Faction faction = requireFaction(player);
+        if (faction == null) return true;
 
         double totalPower = plugin.getPowerManager().getFactionPower(faction.getFactionId());
         double playerPower = plugin.getPowerManager().getPlayerPower(player.getUniqueId());
@@ -1295,12 +1198,8 @@ public class FactionCommand implements CommandExecutor {
     // ==========================================
     private boolean handleElixir(Player player) {
 
-        Faction faction = plugin.getFactionManager().getPlayerFaction(player.getUniqueId());
-
-        if (faction == null) {
-            player.sendMessage(msg.error("You're not in a faction!"));
-            return true;
-        }
+        Faction faction = requireFaction(player);
+        if (faction == null) return true;
 
         double elixir = plugin.getElixirManager().getFactionElixir(faction.getFactionId());
 
@@ -1345,12 +1244,8 @@ public class FactionCommand implements CommandExecutor {
     // ==========================================
     private boolean handleMotd(Player player, String[] args) {
 
-        Faction faction = plugin.getFactionManager().getPlayerFaction(player.getUniqueId());
-
-        if (faction == null) {
-            player.sendMessage(msg.error("You're not in a faction!"));
-            return true;
-        }
+        Faction faction = requireFaction(player);
+        if (faction == null) return true;
 
         if (!faction.isLeaderOrOfficer(player.getUniqueId())) {
             player.sendMessage(msg.error("Only the leader and officers can set the faction MOTD!"));
@@ -1393,12 +1288,8 @@ public class FactionCommand implements CommandExecutor {
     // ==========================================
     private boolean handleDesc(Player player, String[] args) {
 
-        Faction faction = plugin.getFactionManager().getPlayerFaction(player.getUniqueId());
-
-        if (faction == null) {
-            player.sendMessage(msg.error("You're not in a faction!"));
-            return true;
-        }
+        Faction faction = requireFaction(player);
+        if (faction == null) return true;
 
         if (!faction.isLeaderOrOfficer(player.getUniqueId())) {
             player.sendMessage(msg.error("Only the leader and officers can set the faction description!"));
@@ -1439,12 +1330,8 @@ public class FactionCommand implements CommandExecutor {
     // ==========================================
     private boolean handleTag(Player player, String[] args) {
 
-        Faction faction = plugin.getFactionManager().getPlayerFaction(player.getUniqueId());
-
-        if (faction == null) {
-            player.sendMessage(msg.error("You're not in a faction!"));
-            return true;
-        }
+        Faction faction = requireFaction(player);
+        if (faction == null) return true;
 
         if (!faction.isLeader(player.getUniqueId())) {
             player.sendMessage(msg.error("Only the faction leader can set the faction tag!"));
@@ -1481,12 +1368,8 @@ public class FactionCommand implements CommandExecutor {
     // ==========================================
     private boolean handleOpen(Player player) {
 
-        Faction faction = plugin.getFactionManager().getPlayerFaction(player.getUniqueId());
-
-        if (faction == null) {
-            player.sendMessage(msg.error("You're not in a faction!"));
-            return true;
-        }
+        Faction faction = requireFaction(player);
+        if (faction == null) return true;
 
         if (!faction.isLeader(player.getUniqueId())) {
             player.sendMessage(msg.error("Only the faction leader can toggle open join!"));
@@ -1511,12 +1394,8 @@ public class FactionCommand implements CommandExecutor {
     // ==========================================
     private boolean handlePvp(Player player) {
 
-        Faction faction = plugin.getFactionManager().getPlayerFaction(player.getUniqueId());
-
-        if (faction == null) {
-            player.sendMessage(msg.error("You're not in a faction!"));
-            return true;
-        }
+        Faction faction = requireFaction(player);
+        if (faction == null) return true;
 
         if (!faction.isLeader(player.getUniqueId())) {
             player.sendMessage(msg.error("Only the faction leader can toggle PvP!"));
@@ -1541,12 +1420,8 @@ public class FactionCommand implements CommandExecutor {
     // ==========================================
     private boolean handleTnt(Player player) {
 
-        Faction faction = plugin.getFactionManager().getPlayerFaction(player.getUniqueId());
-
-        if (faction == null) {
-            player.sendMessage(msg.error("You're not in a faction!"));
-            return true;
-        }
+        Faction faction = requireFaction(player);
+        if (faction == null) return true;
 
         if (!faction.isLeader(player.getUniqueId())) {
             player.sendMessage(msg.error("Only the faction leader can toggle TNT!"));
@@ -1571,12 +1446,8 @@ public class FactionCommand implements CommandExecutor {
     // ==========================================
     private boolean handleChat(Player player) {
 
-        Faction faction = plugin.getFactionManager().getPlayerFaction(player.getUniqueId());
-
-        if (faction == null) {
-            player.sendMessage(msg.error("You're not in a faction!"));
-            return true;
-        }
+        Faction faction = requireFaction(player);
+        if (faction == null) return true;
 
         String current = chatModeMap.get(player.getUniqueId());
 
@@ -1598,12 +1469,8 @@ public class FactionCommand implements CommandExecutor {
     // ==========================================
     private boolean handleAllyChat(Player player) {
 
-        Faction faction = plugin.getFactionManager().getPlayerFaction(player.getUniqueId());
-
-        if (faction == null) {
-            player.sendMessage(msg.error("You're not in a faction!"));
-            return true;
-        }
+        Faction faction = requireFaction(player);
+        if (faction == null) return true;
 
         String current = chatModeMap.get(player.getUniqueId());
 
@@ -1624,17 +1491,10 @@ public class FactionCommand implements CommandExecutor {
     // ==========================================
     private boolean handleAlly(Player player, String[] args) {
 
-        if (args.length < 2) {
-            player.sendMessage(msg.error("Usage: /f ally <faction>"));
-            return true;
-        }
+        if (!requireArgs(player, args, 2, "/f ally <faction>")) return true;
 
-        Faction faction = plugin.getFactionManager().getPlayerFaction(player.getUniqueId());
-
-        if (faction == null) {
-            player.sendMessage(msg.error("You're not in a faction!"));
-            return true;
-        }
+        Faction faction = requireFaction(player);
+        if (faction == null) return true;
 
         if (!faction.isLeaderOrOfficer(player.getUniqueId())) {
             player.sendMessage(msg.error("Only leaders and officers can manage alliances!"));
@@ -1675,17 +1535,10 @@ public class FactionCommand implements CommandExecutor {
     // ==========================================
     private boolean handleEnemy(Player player, String[] args) {
 
-        if (args.length < 2) {
-            player.sendMessage(msg.error("Usage: /f enemy <faction>"));
-            return true;
-        }
+        if (!requireArgs(player, args, 2, "/f enemy <faction>")) return true;
 
-        Faction faction = plugin.getFactionManager().getPlayerFaction(player.getUniqueId());
-
-        if (faction == null) {
-            player.sendMessage(msg.error("You're not in a faction!"));
-            return true;
-        }
+        Faction faction = requireFaction(player);
+        if (faction == null) return true;
 
         if (!faction.isLeaderOrOfficer(player.getUniqueId())) {
             player.sendMessage(msg.error("Only leaders and officers can manage enemies!"));
@@ -1729,17 +1582,10 @@ public class FactionCommand implements CommandExecutor {
     // ==========================================
     private boolean handleNeutral(Player player, String[] args) {
 
-        if (args.length < 2) {
-            player.sendMessage(msg.error("Usage: /f neutral <faction>"));
-            return true;
-        }
+        if (!requireArgs(player, args, 2, "/f neutral <faction>")) return true;
 
-        Faction faction = plugin.getFactionManager().getPlayerFaction(player.getUniqueId());
-
-        if (faction == null) {
-            player.sendMessage(msg.error("You're not in a faction!"));
-            return true;
-        }
+        Faction faction = requireFaction(player);
+        if (faction == null) return true;
 
         if (!faction.isLeaderOrOfficer(player.getUniqueId())) {
             player.sendMessage(msg.error("Only leaders and officers can manage relations!"));
@@ -1768,12 +1614,8 @@ public class FactionCommand implements CommandExecutor {
     // ==========================================
     private boolean handleFly(Player player) {
 
-        Faction faction = plugin.getFactionManager().getPlayerFaction(player.getUniqueId());
-
-        if (faction == null) {
-            player.sendMessage(msg.error("You're not in a faction!"));
-            return true;
-        }
+        Faction faction = requireFaction(player);
+        if (faction == null) return true;
 
         // Check if they're in their own territory
         Chunk chunk = player.getLocation().getChunk();
@@ -1826,10 +1668,7 @@ public class FactionCommand implements CommandExecutor {
                 return handleList(player);
 
             case "power":
-                if (args.length < 4) {
-                    player.sendMessage(msg.error("Usage: /f admin power <faction> <amount>"));
-                    return true;
-                }
+                if (!requireArgs(player, args, 4, "/f admin power <faction> <amount>")) return true;
                 Faction powerFaction = plugin.getFactionManager().getFactionByName(args[2]);
                 if (powerFaction == null) {
                     player.sendMessage(msg.error("Faction not found!"));
@@ -1845,10 +1684,7 @@ public class FactionCommand implements CommandExecutor {
                 return true;
 
             case "elixir":
-                if (args.length < 4) {
-                    player.sendMessage(msg.error("Usage: /f admin elixir <faction> <amount>"));
-                    return true;
-                }
+                if (!requireArgs(player, args, 4, "/f admin elixir <faction> <amount>")) return true;
                 Faction elixirFaction = plugin.getFactionManager().getFactionByName(args[2]);
                 if (elixirFaction == null) {
                     player.sendMessage(msg.error("Faction not found!"));
@@ -1864,10 +1700,7 @@ public class FactionCommand implements CommandExecutor {
                 return true;
 
             case "remove":
-                if (args.length < 3) {
-                    player.sendMessage(msg.error("Usage: /f admin remove <faction>"));
-                    return true;
-                }
+                if (!requireArgs(player, args, 3, "/f admin remove <faction>")) return true;
                 Faction removeFaction = plugin.getFactionManager().getFactionByName(args[2]);
                 if (removeFaction == null) {
                     player.sendMessage(msg.error("Faction not found!"));
@@ -1883,10 +1716,7 @@ public class FactionCommand implements CommandExecutor {
                 return true;
 
             case "claim":
-                if (args.length < 3) {
-                    player.sendMessage(msg.error("Usage: /f admin claim <faction>"));
-                    return true;
-                }
+                if (!requireArgs(player, args, 3, "/f admin claim <faction>")) return true;
                 Faction claimFor = plugin.getFactionManager().getFactionByName(args[2]);
                 if (claimFor == null) {
                     player.sendMessage(msg.error("Faction not found!"));
@@ -1958,6 +1788,26 @@ public class FactionCommand implements CommandExecutor {
     // ==========================================
     // Helper Methods
     // ==========================================
+
+    // Return the player's faction, or null after telling them they're not in one.
+    // Callers do: Faction f = requireFaction(player); if (f == null) return true;
+    private Faction requireFaction(Player player) {
+        Faction faction = plugin.getFactionManager().getPlayerFaction(player.getUniqueId());
+        if (faction == null) {
+            player.sendMessage(msg.error("You're not in a faction!"));
+        }
+        return faction;
+    }
+
+    // Ensure at least `min` arguments were given, else show the usage string.
+    // Returns true when the args are sufficient.
+    private boolean requireArgs(Player player, String[] args, int min, String usage) {
+        if (args.length < min) {
+            player.sendMessage(msg.error("Usage: " + usage));
+            return false;
+        }
+        return true;
+    }
 
     // Find a player's UUID by name within a faction
     private UUID findPlayerUuidByName(String name, Faction faction) {

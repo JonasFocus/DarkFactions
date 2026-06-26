@@ -19,6 +19,7 @@ import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.Chunk;
 import org.bukkit.Location;
 import org.bukkit.World;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
@@ -358,11 +359,18 @@ public class ClaimManager {
     public void saveClaims() {
         FileConfiguration config = new YamlConfiguration();
 
+        // Group claims by faction in one pass, then write each list once.
+        // The previous version re-read and re-wrote a growing string list for
+        // every claim, which is O(n^2) in the number of claims.
+        Map<String, List<String>> claimsByFaction = new HashMap<>();
         for (Map.Entry<String, UUID> entry : claimMap.entrySet()) {
-            String factionIdStr = entry.getValue().toString();
-            List<String> claimList = config.getStringList("claims." + factionIdStr);
-            claimList.add(entry.getKey());
-            config.set("claims." + factionIdStr, claimList);
+            claimsByFaction
+                    .computeIfAbsent(entry.getValue().toString(), k -> new ArrayList<>())
+                    .add(entry.getKey());
+        }
+
+        for (Map.Entry<String, List<String>> entry : claimsByFaction.entrySet()) {
+            config.set("claims." + entry.getKey(), entry.getValue());
         }
 
         YamlStore.save(config, dataFile, plugin.getLogger());
@@ -370,11 +378,14 @@ public class ClaimManager {
 
     public void loadClaims() {
         FileConfiguration config = YamlStore.load(dataFile, plugin.getLogger());
-        if (!config.contains("claims")) return;
+        // contains("claims") can be true for a scalar value, where
+        // getConfigurationSection returns null and would NPE below.
+        ConfigurationSection claimsSection = config.getConfigurationSection("claims");
+        if (claimsSection == null) return;
 
         int totalClaims = 0;
 
-        for (String factionIdStr : config.getConfigurationSection("claims").getKeys(false)) {
+        for (String factionIdStr : claimsSection.getKeys(false)) {
             try {
                 UUID factionId = UUID.fromString(factionIdStr);
                 List<String> claimList = config.getStringList("claims." + factionIdStr);

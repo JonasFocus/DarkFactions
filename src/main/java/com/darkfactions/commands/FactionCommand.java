@@ -1,10 +1,6 @@
 package com.darkfactions.commands;
 
-// ==========================================
-// FactionCommand.java
-// Handles ALL /f subcommands
-// This is where all the magic happens
-// ==========================================
+// Handles all /f (and /faction) subcommands by routing args[0] to a handler.
 
 import com.darkfactions.DarkFactions;
 import com.darkfactions.managers.ClaimResult;
@@ -276,7 +272,7 @@ public class FactionCommand implements CommandExecutor {
 
     // ==========================================
     // DISBAND - /f disband
-    // Deletes the faction (leader only) with confirm
+    // Deletes the faction (leader only)
     // ==========================================
     private boolean handleDisband(Player player) {
 
@@ -294,10 +290,7 @@ public class FactionCommand implements CommandExecutor {
 
         String factionName = faction.getName();
 
-        // Remove all claims first
-        plugin.getClaimManager().removeAllFactionClaims(faction.getFactionId());
-
-        // Delete the faction
+        // deleteFaction() already removes this faction's claims internally.
         plugin.getFactionManager().deleteFaction(faction.getFactionId());
 
         // Broadcast to all online members
@@ -733,7 +726,6 @@ public class FactionCommand implements CommandExecutor {
             return true;
         }
 
-        String oldLeaderName = plugin.getPlayerNameCache().getPlayerName(player.getUniqueId());
         String newLeaderName = plugin.getPlayerNameCache().getPlayerName(targetUuid);
 
         plugin.getFactionManager().transferLeadership(faction.getFactionId(), targetUuid);
@@ -784,7 +776,8 @@ public class FactionCommand implements CommandExecutor {
             return true;
         }
         if (nameCheck == FactionNameValidator.Result.INVALID_CHARS) {
-            player.sendMessage(msg.error("Faction name can only contain letters, numbers, and underscores!"));
+            // Report the actual configured pattern instead of a hard-coded guess.
+            player.sendMessage(msg.error("Faction name contains invalid characters! Allowed: " + allowed));
             return true;
         }
 
@@ -842,8 +835,7 @@ public class FactionCommand implements CommandExecutor {
             return true;
         }
 
-        // Check cooldown
-        // Check cooldown from config
+        // Enforce per-player /f home cooldown (0 disables it)
         int cooldown = plugin.getConfigManager().getHomeCooldown();
         if (cooldown > 0) {
             long lastUsed = homeCooldowns.getOrDefault(player.getUniqueId(), 0L);
@@ -1566,7 +1558,7 @@ public class FactionCommand implements CommandExecutor {
     }
 
     // ==========================================
-    // CHAT - /f chat  (alias: /fc)
+    // CHAT - /f chat (alias: /f fc)
     // Toggles faction-only chat mode
     // ==========================================
     private boolean handleChat(Player player) {
@@ -1593,7 +1585,7 @@ public class FactionCommand implements CommandExecutor {
     }
 
     // ==========================================
-    // ALLY CHAT - /f allychat (alias: /fac)
+    // ALLY CHAT - /f allychat (alias: /f ac)
     // Toggles ally chat mode
     // ==========================================
     private boolean handleAllyChat(Player player) {
@@ -1875,9 +1867,7 @@ public class FactionCommand implements CommandExecutor {
                 }
                 String removedName = removeFaction.getName();
 
-                // Remove all claims first
-                plugin.getClaimManager().removeAllFactionClaims(removeFaction.getFactionId());
-
+                // deleteFaction() already removes this faction's claims internally.
                 plugin.getFactionManager().deleteFaction(removeFaction.getFactionId());
                 player.sendMessage(msg.success("Force removed faction: " + removedName));
                 return true;
@@ -1933,7 +1923,7 @@ public class FactionCommand implements CommandExecutor {
     }
 
     // ==========================================
-    // RELOAD - /f reload (or /f admin reload)
+    // RELOAD - /f reload
     // Reloads ALL config values from config.yml
     // ==========================================
     private boolean handleReload(Player player) {

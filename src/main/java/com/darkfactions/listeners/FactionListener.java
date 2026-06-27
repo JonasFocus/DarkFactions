@@ -36,7 +36,6 @@ import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 
 public class FactionListener implements Listener {
@@ -224,18 +223,16 @@ public class FactionListener implements Listener {
             return;
         }
 
-        // Check territory protection - if victim is in their own territory, attacker cant hurt them
-        // unless attacker is an enemy
+        // Territory check: a player standing in their own claim while a non-enemy
+        // attacks them. Standard factions behavior leaves this hit allowed, so we
+        // only short-circuit out of the handler here rather than cancelling.
         Chunk chunk = victim.getLocation().getChunk();
         UUID chunkOwner = plugin.getClaimManager().getClaimOwner(chunk);
 
         if (chunkOwner != null && victimFaction != null &&
             chunkOwner.equals(victimFaction.getFactionId())) {
 
-            // Player is in their own territory - check if attacker is an enemy
             if (attackerFaction != null && !victimFaction.isEnemy(attackerFaction.getFactionId())) {
-                // Allow PvP if both are in faction but not enemies in own territory - still allowed
-                // This is standard factions behavior - but allow config to control
                 return;
             }
         }
@@ -335,7 +332,7 @@ public class FactionListener implements Listener {
         // ==========================================
         if (newOwnerId == null) {
             // This chunk is wilderness - check if player has auto-claim on
-            FactionCommand cmd = (FactionCommand) plugin.getCommand("faction").getExecutor();
+            FactionCommand cmd = plugin.getFactionCommand();
             if (cmd != null && cmd.isAutoClaiming(player.getUniqueId())) {
                 Faction playerFaction = plugin.getFactionManager().getPlayerFaction(player.getUniqueId());
                 if (playerFaction != null) {

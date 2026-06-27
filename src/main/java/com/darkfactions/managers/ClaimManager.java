@@ -118,6 +118,8 @@ public class ClaimManager {
             int spawnChunkZ = spawn.getBlockZ() >> 4;
             int distX = Math.abs(chunk.getX() - spawnChunkX);
             int distZ = Math.abs(chunk.getZ() - spawnChunkZ);
+            // Square exclusion zone: blocked only when inside the radius on BOTH axes,
+            // so the protected area is a (2*minDistance-1) chunk box around spawn.
             if (distX < minDistanceFromSpawn && distZ < minDistanceFromSpawn) {
                 return ClaimResult.TOO_CLOSE_SPAWN;
             }
@@ -202,13 +204,8 @@ public class ClaimManager {
     }
 
     public int unclaimAll(UUID factionId) {
-        List<String> toRemove = new ArrayList<>();
-        for (Map.Entry<String, UUID> entry : claimMap.entrySet()) {
-            if (entry.getValue().equals(factionId)) {
-                toRemove.add(entry.getKey());
-            }
-        }
-
+        // Collect first, then remove: avoids mutating claimMap while iterating it.
+        List<String> toRemove = getFactionClaims(factionId);
         for (String key : toRemove) {
             claimMap.remove(key);
         }
@@ -307,10 +304,11 @@ public class ClaimManager {
                         map.append(wildColor).append(ownChar).append("§r");
                     }
                 } else if (ownerId != null) {
+                    Faction ownerFaction = plugin.getFactionManager().getFaction(ownerId);
                     if (playerFaction != null && ownerId.equals(playerFaction.getFactionId())) {
                         map.append(ownColor).append(ownTile).append("§r");
-                    } else if (playerFaction != null && plugin.getFactionManager().getFaction(ownerId) != null
-                            && plugin.getFactionManager().getFaction(ownerId).isAlly(playerFaction.getFactionId())) {
+                    } else if (playerFaction != null && ownerFaction != null
+                            && ownerFaction.isAlly(playerFaction.getFactionId())) {
                         map.append(allyColor).append(allyTile).append("§r");
                     } else {
                         map.append(enemyColor).append(enemyTile).append("§r");
@@ -358,11 +356,16 @@ public class ClaimManager {
     public void saveClaims() {
         FileConfiguration config = new YamlConfiguration();
 
+        // Group chunk keys by owning faction in one pass, then write each list once,
+        // rather than re-reading the growing list from config for every single chunk.
+        Map<UUID, List<String>> claimsByFaction = new HashMap<>();
         for (Map.Entry<String, UUID> entry : claimMap.entrySet()) {
-            String factionIdStr = entry.getValue().toString();
-            List<String> claimList = config.getStringList("claims." + factionIdStr);
-            claimList.add(entry.getKey());
-            config.set("claims." + factionIdStr, claimList);
+            claimsByFaction.computeIfAbsent(entry.getValue(), id -> new ArrayList<>())
+                    .add(entry.getKey());
+        }
+
+        for (Map.Entry<UUID, List<String>> entry : claimsByFaction.entrySet()) {
+            config.set("claims." + entry.getKey(), entry.getValue());
         }
 
         YamlStore.save(config, dataFile, plugin.getLogger());

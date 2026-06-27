@@ -104,6 +104,7 @@ public class ElixirManager {
 
         Faction victimFaction = plugin.getFactionManager().getFaction(victimFactionId);
         if (victimFaction != null) {
+            // Cap the steal at the victim's current balance so removeElixir can never fail.
             double stolenAmount = Math.min(perRaid * raidStealPercent, victimFaction.getElixir());
             victimFaction.removeElixir(stolenAmount);
         }
@@ -116,6 +117,7 @@ public class ElixirManager {
             Faction faction = plugin.getFactionManager().getPlayerFaction(playerUuid);
             if (faction != null) {
                 faction.addElixir(dailyBonus);
+                plugin.requestSave(); // persist the faction's new balance
             }
         } else {
             // Add to pending - claimed via /f elixir
@@ -128,6 +130,8 @@ public class ElixirManager {
     public boolean claimPendingElixir(UUID playerUuid) {
         if (!pendingElixir.containsKey(playerUuid)) return false;
 
+        // Keep the pending balance intact if the player has no faction to receive it,
+        // so they can still claim once they (re)join one.
         Faction faction = plugin.getFactionManager().getPlayerFaction(playerUuid);
         if (faction == null) return false;
 
@@ -167,6 +171,8 @@ public class ElixirManager {
     public boolean transferElixir(UUID fromFactionId, UUID toFactionId, double amount) {
         if (!transferEnabled) return false;
 
+        // Full amount leaves the sender; the tax is burned (not credited anywhere),
+        // so the receiver only gets the post-tax remainder.
         double tax = amount * transferTaxRate;
         double actualTransfer = amount - tax;
 

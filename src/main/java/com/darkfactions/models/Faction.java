@@ -49,7 +49,8 @@ public class Faction {
     // Maximum power this faction can have
     private double maxPower;
 
-    // When this faction was created (unix timestamp)
+    // When this faction was created, in epoch milliseconds (System.currentTimeMillis()).
+    // Consumers wrap this directly in java.util.Date, so it must stay millis, not seconds.
     private long creationTime;
 
     // Elixir points - basically faction currency/points

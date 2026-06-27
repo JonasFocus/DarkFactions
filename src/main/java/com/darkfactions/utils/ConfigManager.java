@@ -2,8 +2,9 @@ package com.darkfactions.utils;
 
 // ==========================================
 // ConfigManager.java
-// Central config loader - loads EVERY setting from config.yml
-// All managers should use this instead of reading config directly
+// Central, typed accessor for config.yml. Values are read on demand
+// (not cached), so changes take effect after the next reload().
+// All managers should use this instead of reading config directly.
 // ==========================================
 
 import com.darkfactions.DarkFactions;
@@ -17,24 +18,20 @@ public class ConfigManager {
     private final DarkFactions plugin;
     private FileConfiguration config;
 
-    // ==========================================
-    // Constructor - loads everything on init
-    // ==========================================
     public ConfigManager(DarkFactions plugin) {
         this.plugin = plugin;
         reload();
     }
 
-    // ==========================================
-    // Reload all config values from disk
-    // Call this when /f admin reload is used
-    // ==========================================
+    // Re-reads config.yml from disk and refreshes our reference.
+    // Called when /f admin reload is used.
     public void reload() {
         plugin.reloadConfig();
         this.config = plugin.getConfig();
     }
 
-    // Helper to read a string with color codes translated
+    // Reads a string and translates '&' color codes to the section sign.
+    // def is non-null at every call site, so getString never returns null here.
     private String c(String path, String def) {
         return config.getString(path, def).replace('&', '\u00A7');
     }

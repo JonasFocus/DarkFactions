@@ -10,6 +10,8 @@ import com.darkfactions.DarkFactions;
 import com.darkfactions.commands.FactionCommand;
 import com.darkfactions.managers.ClaimResult;
 import com.darkfactions.models.Faction;
+import com.darkfactions.utils.ChatFormatter;
+import com.darkfactions.utils.TerritoryMessageFormatter;
 
 import org.bukkit.Chunk;
 import org.bukkit.Material;
@@ -28,6 +30,7 @@ import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 
 import io.papermc.paper.event.player.AsyncChatEvent;
+import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 
@@ -58,42 +61,13 @@ public class FactionListener implements Listener {
     // ==========================================
     @EventHandler
     public void onBlockBreak(BlockBreakEvent event) {
-        Player player = event.getPlayer();
-        Block block = event.getBlock();
-
-        // Check if the location is claimed
-        UUID ownerId = plugin.getClaimManager().getLocationOwner(block.getLocation());
-        if (ownerId == null) {
-            return; // Wilderness - anything goes
+        Faction denier = protectionDenier(event.getPlayer(), event.getBlock());
+        if (denier != null) {
+            event.setCancelled(true);
+            event.getPlayer().sendMessage(plugin.getMessageUtils().error(
+                    "You cannot break blocks in " + denier.getName() + "'s territory!"
+            ));
         }
-
-        // Check admin bypass
-        if (plugin.getClaimManager().getBypassPlayers().contains(player.getUniqueId())) {
-            return; // Admin can break anywhere
-        }
-
-        Faction ownerFaction = plugin.getFactionManager().getFaction(ownerId);
-        if (ownerFaction == null) {
-            return;
-        }
-
-        Faction playerFaction = plugin.getFactionManager().getPlayerFaction(player.getUniqueId());
-
-        // If the player owns this territory, allow it
-        if (playerFaction != null && playerFaction.getFactionId().equals(ownerId)) {
-            return;
-        }
-
-        // Allies can break in allied territory
-        if (playerFaction != null && ownerFaction.isAlly(playerFaction.getFactionId())) {
-            return;
-        }
-
-        // Deny!
-        event.setCancelled(true);
-        player.sendMessage(plugin.getMessageUtils().error(
-                "You cannot break blocks in " + ownerFaction.getName() + "'s territory!"
-        ));
     }
 
     // ==========================================
@@ -101,38 +75,13 @@ public class FactionListener implements Listener {
     // ==========================================
     @EventHandler
     public void onBlockPlace(BlockPlaceEvent event) {
-        Player player = event.getPlayer();
-        Block block = event.getBlock();
-
-        UUID ownerId = plugin.getClaimManager().getLocationOwner(block.getLocation());
-        if (ownerId == null) {
-            return;
+        Faction denier = protectionDenier(event.getPlayer(), event.getBlock());
+        if (denier != null) {
+            event.setCancelled(true);
+            event.getPlayer().sendMessage(plugin.getMessageUtils().error(
+                    "You cannot place blocks in " + denier.getName() + "'s territory!"
+            ));
         }
-
-        if (plugin.getClaimManager().getBypassPlayers().contains(player.getUniqueId())) {
-            return;
-        }
-
-        Faction ownerFaction = plugin.getFactionManager().getFaction(ownerId);
-        if (ownerFaction == null) {
-            return;
-        }
-
-        Faction playerFaction = plugin.getFactionManager().getPlayerFaction(player.getUniqueId());
-
-        if (playerFaction != null && playerFaction.getFactionId().equals(ownerId)) {
-            return;
-        }
-
-        // Allies can place in allied territory
-        if (playerFaction != null && ownerFaction.isAlly(playerFaction.getFactionId())) {
-            return;
-        }
-
-        event.setCancelled(true);
-        player.sendMessage(plugin.getMessageUtils().error(
-                "You cannot place blocks in " + ownerFaction.getName() + "'s territory!"
-        ));
     }
 
     // ==========================================
@@ -146,7 +95,6 @@ public class FactionListener implements Listener {
             return;
         }
 
-        Player player = event.getPlayer();
         Block block = event.getClickedBlock();
 
         // Only protect interactive blocks (chests, doors, buttons, etc.)
@@ -154,35 +102,60 @@ public class FactionListener implements Listener {
             return;
         }
 
+        Faction denier = protectionDenier(event.getPlayer(), block);
+        if (denier != null) {
+            event.setCancelled(true);
+            event.getPlayer().sendMessage(plugin.getMessageUtils().error(
+                    "You cannot use that in " + denier.getName() + "'s territory!"
+            ));
+        }
+    }
+
+    // ==========================================
+    // Shared territory-protection check.
+    // Returns the owning faction whose claim should block this player's action,
+    // or null when the action is allowed (wilderness, admin bypass, own land,
+    // or allied land).
+    // ==========================================
+    private Faction protectionDenier(Player player, Block block) {
         UUID ownerId = plugin.getClaimManager().getLocationOwner(block.getLocation());
         if (ownerId == null) {
-            return;
+            return null; // Wilderness - anything goes
         }
 
         if (plugin.getClaimManager().getBypassPlayers().contains(player.getUniqueId())) {
-            return;
+            return null; // Admin bypass
         }
 
         Faction ownerFaction = plugin.getFactionManager().getFaction(ownerId);
         if (ownerFaction == null) {
-            return;
+            return null;
         }
 
         Faction playerFaction = plugin.getFactionManager().getPlayerFaction(player.getUniqueId());
-
-        if (playerFaction != null && playerFaction.getFactionId().equals(ownerId)) {
-            return;
+        if (playerFaction == null) {
+            return ownerFaction;
         }
 
-        // Allies can use allied territory blocks
-        if (playerFaction != null && ownerFaction.isAlly(playerFaction.getFactionId())) {
-            return;
+        // Allow the owning faction and its allies.
+        if (playerFaction.getFactionId().equals(ownerId) || ownerFaction.isAlly(playerFaction.getFactionId())) {
+            return null;
         }
 
-        event.setCancelled(true);
-        player.sendMessage(plugin.getMessageUtils().error(
-                "You cannot use that in " + ownerFaction.getName() + "'s territory!"
-        ));
+        return ownerFaction;
+    }
+
+    // ==========================================
+    // Expand a territory-message template with a faction's details.
+    // ==========================================
+    private String formatTerritoryMessage(String template, Faction faction) {
+        return TerritoryMessageFormatter.format(
+                template,
+                faction.getName(),
+                plugin.getPlayerNameCache().getPlayerName(faction.getLeaderUuid()),
+                faction.getMemberCount(),
+                faction.getPower(),
+                faction.getElixir());
     }
 
     // Check if a block type should be protected
@@ -330,41 +303,22 @@ public class FactionListener implements Listener {
         }
 
         // Only show messages if the owner actually changed
-        if (newOwnerId != null && !newOwnerId.equals(oldOwnerId)) {
+        if (newOwnerId != null && !newOwnerId.equals(oldOwnerId)
+                && plugin.getConfigManager().isTerritoryMessagesEnabled()) {
             Faction newFaction = plugin.getFactionManager().getFaction(newOwnerId);
 
             if (newFaction != null) {
                 Faction playerFaction = plugin.getFactionManager().getPlayerFaction(player.getUniqueId());
 
-                // Check if border messages are enabled in config
-                if (plugin.getConfigManager().isTerritoryMessagesEnabled()) {
-                    String msg;
-                    if (playerFaction != null && playerFaction.getFactionId().equals(newOwnerId)) {
-                        msg = plugin.getConfigManager().getTerritoryEnterOwn()
-                                .replace("{faction}", newFaction.getName())
-                                .replace("{leader}", plugin.getPlayerNameCache().getPlayerName(newFaction.getLeaderUuid()))
-                                .replace("{members}", String.valueOf(newFaction.getMemberCount()))
-                                .replace("{power}", String.format("%.1f", newFaction.getPower()))
-                                .replace("{elixir}", String.format("%.0f", newFaction.getElixir()));
-                        player.sendMessage(msg);
-                    } else if (playerFaction != null && newFaction.isAlly(playerFaction.getFactionId())) {
-                        msg = plugin.getConfigManager().getTerritoryEnterAlly()
-                                .replace("{faction}", newFaction.getName())
-                                .replace("{leader}", plugin.getPlayerNameCache().getPlayerName(newFaction.getLeaderUuid()))
-                                .replace("{members}", String.valueOf(newFaction.getMemberCount()))
-                                .replace("{power}", String.format("%.1f", newFaction.getPower()))
-                                .replace("{elixir}", String.format("%.0f", newFaction.getElixir()));
-                        player.sendMessage(msg);
-                    } else {
-                        msg = plugin.getConfigManager().getTerritoryEnterEnemy()
-                                .replace("{faction}", newFaction.getName())
-                                .replace("{leader}", plugin.getPlayerNameCache().getPlayerName(newFaction.getLeaderUuid()))
-                                .replace("{members}", String.valueOf(newFaction.getMemberCount()))
-                                .replace("{power}", String.format("%.1f", newFaction.getPower()))
-                                .replace("{elixir}", String.format("%.0f", newFaction.getElixir()));
-                        player.sendMessage(msg);
-                    }
+                String template;
+                if (playerFaction != null && playerFaction.getFactionId().equals(newOwnerId)) {
+                    template = plugin.getConfigManager().getTerritoryEnterOwn();
+                } else if (playerFaction != null && newFaction.isAlly(playerFaction.getFactionId())) {
+                    template = plugin.getConfigManager().getTerritoryEnterAlly();
+                } else {
+                    template = plugin.getConfigManager().getTerritoryEnterEnemy();
                 }
+                player.sendMessage(formatTerritoryMessage(template, newFaction));
             }
         }
 
@@ -372,13 +326,7 @@ public class FactionListener implements Listener {
         if (oldOwnerId != null && newOwnerId == null && plugin.getConfigManager().isTerritoryMessagesEnabled()) {
             Faction oldFaction = plugin.getFactionManager().getFaction(oldOwnerId);
             if (oldFaction != null) {
-                String msg = plugin.getConfigManager().getTerritoryExit()
-                        .replace("{faction}", oldFaction.getName())
-                        .replace("{leader}", plugin.getPlayerNameCache().getPlayerName(oldFaction.getLeaderUuid()))
-                        .replace("{members}", String.valueOf(oldFaction.getMemberCount()))
-                        .replace("{power}", String.format("%.1f", oldFaction.getPower()))
-                        .replace("{elixir}", String.format("%.0f", oldFaction.getElixir()));
-                player.sendMessage(msg);
+                player.sendMessage(formatTerritoryMessage(plugin.getConfigManager().getTerritoryExit(), oldFaction));
             }
         }
 
@@ -523,62 +471,38 @@ public class FactionListener implements Listener {
         String prefix = LegacyComponentSerializer.legacySection()
                 .serialize(plugin.getMessageUtils().getChatPrefix()); // Get formatted prefix
 
-        if ("faction".equals(chatMode)) {
-            // Send only to faction members using config format
-            String format = plugin.getConfigManager().getFactionChatFormat();
-            format = format.replace("{prefix}", prefix);
-            format = format.replace("{tag}", faction.getFormattedTag());
-            format = format.replace("{player}", player.getName());
-            format = format.replace("{faction}", faction.getName());
-            format = format.replace("{message}", message);
-            // Translate color codes
-            format = format.replace('&', '\u00A7');
+        boolean allyMode = "ally".equals(chatMode);
+        String template = allyMode
+                ? plugin.getConfigManager().getAllyChatFormat()
+                : plugin.getConfigManager().getFactionChatFormat();
 
-            for (UUID memberUuid : faction.getMembers()) {
-                Player member = player.getServer().getPlayer(memberUuid);
-                if (member != null && member.isOnline()) {
-                    member.sendMessage(LegacyComponentSerializer.legacySection().deserialize(format));
-                }
-            }
+        Component rendered = LegacyComponentSerializer.legacySection().deserialize(
+                ChatFormatter.format(template, prefix, faction.getFormattedTag(),
+                        player.getName(), faction.getName(), message));
 
-            // Log if enabled
-            if (plugin.getConfigManager().isLogChatToConsole()) {
-                plugin.getLogger().info("[FACTION CHAT] " + faction.getName() + " - " + player.getName() + ": " + message);
-            }
-
-        } else if ("ally".equals(chatMode)) {
-            // Send to faction members AND allies using config format
-            String format = plugin.getConfigManager().getAllyChatFormat();
-            format = format.replace("{prefix}", prefix);
-            format = format.replace("{tag}", faction.getFormattedTag());
-            format = format.replace("{player}", player.getName());
-            format = format.replace("{faction}", faction.getName());
-            format = format.replace("{message}", message);
-            format = format.replace('&', '\u00A7');
-
-            // Send to own faction
-            for (UUID memberUuid : faction.getMembers()) {
-                Player member = player.getServer().getPlayer(memberUuid);
-                if (member != null && member.isOnline()) {
-                    member.sendMessage(LegacyComponentSerializer.legacySection().deserialize(format));
-                }
-            }
-
-            // Send to allies
+        // Always reaches the speaker's own faction; ally mode also fans out to allies.
+        broadcastToMembers(faction, rendered);
+        if (allyMode) {
             for (UUID allyId : faction.getAllies()) {
                 Faction allyFaction = plugin.getFactionManager().getFaction(allyId);
                 if (allyFaction != null) {
-                    for (UUID memberUuid : allyFaction.getMembers()) {
-                        Player member = player.getServer().getPlayer(memberUuid);
-                        if (member != null && member.isOnline()) {
-                            member.sendMessage(LegacyComponentSerializer.legacySection().deserialize(format));
-                        }
-                    }
+                    broadcastToMembers(allyFaction, rendered);
                 }
             }
+        }
 
-            if (plugin.getConfigManager().isLogChatToConsole()) {
-                plugin.getLogger().info("[ALLY CHAT] " + faction.getName() + " - " + player.getName() + ": " + message);
+        if (plugin.getConfigManager().isLogChatToConsole()) {
+            String label = allyMode ? "ALLY CHAT" : "FACTION CHAT";
+            plugin.getLogger().info("[" + label + "] " + faction.getName() + " - " + player.getName() + ": " + message);
+        }
+    }
+
+    // Send a rendered component to every online member of a faction.
+    private void broadcastToMembers(Faction faction, Component message) {
+        for (UUID memberUuid : faction.getMembers()) {
+            Player member = plugin.getServer().getPlayer(memberUuid);
+            if (member != null && member.isOnline()) {
+                member.sendMessage(message);
             }
         }
     }

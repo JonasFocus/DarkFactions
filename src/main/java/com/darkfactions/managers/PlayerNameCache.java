@@ -7,6 +7,7 @@ package com.darkfactions.managers;
 // ==========================================
 
 import com.darkfactions.DarkFactions;
+import com.darkfactions.utils.NameIndex;
 import com.darkfactions.utils.YamlStore;
 
 import org.bukkit.configuration.file.FileConfiguration;
@@ -14,7 +15,6 @@ import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 
 import java.io.File;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
@@ -23,8 +23,9 @@ public class PlayerNameCache {
     // Reference to main plugin
     private final DarkFactions plugin;
 
-    // The actual cache: UUID -> Player Name
-    private final Map<UUID, String> nameCache;
+    // The cache: forward UUID -> name plus a reverse name -> UUID index, so
+    // reverse lookups are O(1) instead of scanning every cached entry.
+    private final NameIndex index;
 
     // File for persisting names
     private final File dataFile;
@@ -34,7 +35,7 @@ public class PlayerNameCache {
     // ==========================================
     public PlayerNameCache(DarkFactions plugin) {
         this.plugin = plugin;
-        this.nameCache = new HashMap<>();
+        this.index = new NameIndex();
         this.dataFile = new File(plugin.getDataFolder(), "names.yml");
     }
 
@@ -44,24 +45,24 @@ public class PlayerNameCache {
 
     // Update or add a player to the cache
     public void updateName(UUID uuid, String name) {
-        nameCache.put(uuid, name);
+        index.put(uuid, name);
     }
 
     // Update from a Player object (used on join)
     public void updateName(Player player) {
-        nameCache.put(player.getUniqueId(), player.getName());
+        index.put(player.getUniqueId(), player.getName());
     }
 
     // Get a name from the cache
     // Returns null if not found
     public String getName(UUID uuid) {
-        return nameCache.get(uuid);
+        return index.nameOf(uuid);
     }
 
     // Get a name, with a fallback (UUID truncated)
     // This is the main method other classes should use
     public String getPlayerName(UUID uuid) {
-        String name = nameCache.get(uuid);
+        String name = index.nameOf(uuid);
         if (name != null) {
             return name;
         }
@@ -69,7 +70,7 @@ public class PlayerNameCache {
         // Check if they're online right now
         Player player = plugin.getServer().getPlayer(uuid);
         if (player != null && player.isOnline()) {
-            nameCache.put(uuid, player.getName());
+            index.put(uuid, player.getName());
             return player.getName();
         }
 
@@ -79,22 +80,17 @@ public class PlayerNameCache {
 
     // Check if we have a cached name for this UUID
     public boolean hasName(UUID uuid) {
-        return nameCache.containsKey(uuid);
+        return index.contains(uuid);
     }
 
-    // Try to find a UUID from a name (reverse lookup)
+    // Try to find a UUID from a name (reverse lookup), O(1) via the index.
     public UUID getUuidFromName(String name) {
-        for (Map.Entry<UUID, String> entry : nameCache.entrySet()) {
-            if (entry.getValue().equalsIgnoreCase(name)) {
-                return entry.getKey();
-            }
-        }
-        return null;
+        return index.uuidOf(name);
     }
 
     // Get the entire cache (useful for debugging)
     public Map<UUID, String> getAllNames() {
-        return new HashMap<>(nameCache);
+        return index.entries();
     }
 
     // ==========================================
@@ -105,7 +101,7 @@ public class PlayerNameCache {
     public void saveNames() {
         FileConfiguration config = new YamlConfiguration();
 
-        for (Map.Entry<UUID, String> entry : nameCache.entrySet()) {
+        for (Map.Entry<UUID, String> entry : index.entries().entrySet()) {
             config.set(entry.getKey().toString(), entry.getValue());
         }
 
@@ -121,12 +117,12 @@ public class PlayerNameCache {
             try {
                 UUID uuid = UUID.fromString(key);
                 String name = config.getString(key);
-                nameCache.put(uuid, name);
+                index.put(uuid, name);
             } catch (Exception e) {
                 plugin.getLogger().warning("Failed to load cached name for key: " + key);
             }
         }
 
-        plugin.getLogger().info("Loaded " + nameCache.size() + " cached player names!");
+        plugin.getLogger().info("Loaded " + index.size() + " cached player names!");
     }
 }

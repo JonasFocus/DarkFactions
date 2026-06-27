@@ -78,8 +78,9 @@ public class DarkFactions extends JavaPlugin {
         // Register our main /f command
         // ==========================================
         this.factionCommand = new FactionCommand(this);
-        getCommand("faction").setExecutor(factionCommand);
-        getCommand("faction").setTabCompleter(new FactionTabCompleter());
+        var command = getCommand("faction"); // declared in plugin.yml, so non-null here
+        command.setExecutor(factionCommand);
+        command.setTabCompleter(new FactionTabCompleter());
 
         // ==========================================
         // Register event listeners

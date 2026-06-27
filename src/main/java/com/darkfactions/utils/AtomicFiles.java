@@ -62,6 +62,8 @@ public final class AtomicFiles {
         }
 
         // Keep the previous good copy as a backup for recovery on a corrupt write.
+        // The backup itself is deliberately not fsynced: it only needs to be
+        // recoverable, and the just-fsynced tmp is the authoritative new content.
         if (target.exists()) {
             Files.copy(target.toPath(), backupFile(target).toPath(), StandardCopyOption.REPLACE_EXISTING);
         }

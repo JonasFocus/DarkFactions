@@ -1,10 +1,7 @@
 package com.darkfactions.models;
 
-// ==========================================
-// FactionPlayer.java - Stores data about a player
-// This is seperate from Faction.java so we can track
-// individual player stats like kills, deaths, etc.
-// ==========================================
+// FactionPlayer.java - Per-player data (kept separate from Faction so we can
+// track individual stats like power, kills and deaths independently).
 
 import java.util.UUID;
 
@@ -32,9 +29,6 @@ public class FactionPlayer {
     // When the player last logged out (for power decay offline)
     private long lastLogoutTime;
 
-    // ==========================================
-    // Constructor
-    // ==========================================
     public FactionPlayer(UUID playerUuid) {
         this.playerUuid = playerUuid;
         this.power = 10.0; // Default starting power (like old factions)
@@ -45,12 +39,17 @@ public class FactionPlayer {
         this.lastLogoutTime = 0;
     }
 
-    // Empty constructor for loading
+    // No-arg constructor used when deserializing saved data (see PowerManager.loadPowerData),
+    // where fields are populated via setters rather than the starting defaults above.
     public FactionPlayer() {
     }
 
     // ==========================================
     // Power Methods
+    //
+    // These apply simple, hardcoded power changes clamped to [0, maxPower].
+    // The live gameplay path runs through PowerManager/PowerRules instead, which
+    // are config-driven; adjust balance there, not here.
     // ==========================================
 
     // Increase power over time (called every X minutes)

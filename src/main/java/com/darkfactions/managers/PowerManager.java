@@ -56,8 +56,9 @@ public class PowerManager {
         this.playerDataMap = new ConcurrentHashMap<>();
         this.dataFile = new File(plugin.getDataFolder(), "playerdata.yml");
 
+        // reloadConfig() loads the interval and starts the regen task, so no
+        // separate startRegenTask() call is needed here.
         reloadConfig();
-        startRegenTask();
     }
 
     // ==========================================

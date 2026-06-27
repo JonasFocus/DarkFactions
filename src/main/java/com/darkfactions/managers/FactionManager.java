@@ -65,9 +65,6 @@ public class FactionManager {
 
         ConfigManager cfg = plugin.getConfigManager();
 
-        // Check max factions per player
-        int maxFactions = cfg.getMaxFactionsPerPlayer();
-
         Faction faction = new Faction(name, leaderUuid);
         faction.setPower(cfg.getFactionStartingPower());
         faction.setMaxPower(cfg.getFactionStartingMaxPower());
@@ -400,7 +397,9 @@ public class FactionManager {
                 plugin.getLogger().info("Loaded faction: " + faction.getName());
 
             } catch (Exception e) {
-                plugin.getLogger().severe("Failed to load faction with key: " + key);
+                // Include the cause so a single corrupt entry can be diagnosed
+                // instead of silently disappearing from the loaded roster.
+                plugin.getLogger().severe("Failed to load faction with key: " + key + " (" + e.getMessage() + ")");
             }
         }
     }

@@ -85,8 +85,12 @@ public class FactionTabCompleter implements TabCompleter {
             if (subCmd.equals("invite") || subCmd.equals("add") ||
                 subCmd.equals("uninvite") || subCmd.equals("revoke") ||
                 subCmd.equals("kick")) {
+                // Filter by what the player has typed so far; unlike the static
+                // placeholder branches, these are real names worth narrowing down.
+                String partial = args[1].toLowerCase();
                 return player.getServer().getOnlinePlayers().stream()
                         .map(Player::getName)
+                        .filter(name -> name.toLowerCase().startsWith(partial))
                         .collect(Collectors.toList());
             }
 
@@ -129,10 +133,9 @@ public class FactionTabCompleter implements TabCompleter {
         if (args.length == 3) {
             if (args[0].equalsIgnoreCase("admin")) {
                 String adminSub = args[1].toLowerCase();
-                if (adminSub.equals("power") || adminSub.equals("elixir")) {
-                    return Arrays.asList("<faction>");
-                }
-                if (adminSub.equals("remove") || adminSub.equals("claim")) {
+                // All four admin subcommands take a faction name as their next arg.
+                if (adminSub.equals("power") || adminSub.equals("elixir") ||
+                    adminSub.equals("remove") || adminSub.equals("claim")) {
                     return Arrays.asList("<faction>");
                 }
             }

@@ -1,10 +1,7 @@
 package com.darkfactions.managers;
 
-// ==========================================
-// PlayerNameCache.java
-// Stores player UUID -> name mappings
-// So we can always display names even for offline players
-// ==========================================
+// Persists a UUID -> name mapping so offline players can still be displayed by
+// name and looked up by name (e.g. when targeting someone who isn't online).
 
 import com.darkfactions.DarkFactions;
 import com.darkfactions.utils.NameIndex;
@@ -30,18 +27,11 @@ public class PlayerNameCache {
     // File for persisting names
     private final File dataFile;
 
-    // ==========================================
-    // Constructor
-    // ==========================================
     public PlayerNameCache(DarkFactions plugin) {
         this.plugin = plugin;
         this.index = new NameIndex();
         this.dataFile = new File(plugin.getDataFolder(), "names.yml");
     }
-
-    // ==========================================
-    // Cache Operations
-    // ==========================================
 
     // Update or add a player to the cache
     public void updateName(UUID uuid, String name) {
@@ -67,9 +57,11 @@ public class PlayerNameCache {
             return name;
         }
 
-        // Check if they're online right now
+        // Not cached yet: if they happen to be online, learn and cache the name.
+        // getPlayer(UUID) only ever returns an online player, so a non-null
+        // result is already online.
         Player player = plugin.getServer().getPlayer(uuid);
-        if (player != null && player.isOnline()) {
+        if (player != null) {
             index.put(uuid, player.getName());
             return player.getName();
         }
@@ -92,10 +84,6 @@ public class PlayerNameCache {
     public Map<UUID, String> getAllNames() {
         return index.entries();
     }
-
-    // ==========================================
-    // Save/Load
-    // ==========================================
 
     // Save names to disk
     public void saveNames() {

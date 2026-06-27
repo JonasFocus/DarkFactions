@@ -1,11 +1,7 @@
 package com.darkfactions.utils;
 
-// ==========================================
-// MessageUtils.java
-// Helper class for formatting messages
-// Makes all the plugin messages look consistent
-// Every helper returns an Adventure Component
-// ==========================================
+// Central place for building the plugin's chat messages so styling stays
+// consistent. Every helper returns an Adventure Component.
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -17,10 +13,6 @@ public class MessageUtils {
     private static final Component PREFIX = Component.text("[", NamedTextColor.DARK_GRAY)
             .append(Component.text("DarkFactions", NamedTextColor.RED))
             .append(Component.text("] ", NamedTextColor.DARK_GRAY));
-
-    // ==========================================
-    // Message Types
-    // ==========================================
 
     // Standard header for section titles
     public Component header(String message) {
@@ -54,10 +46,6 @@ public class MessageUtils {
                 .append(Component.text(description, NamedTextColor.WHITE));
     }
 
-    // ==========================================
-    // Chat Formatting
-    // ==========================================
-
     // Get just the plugin prefix (no extra formatting)
     public Component getChatPrefix() {
         return PREFIX;
@@ -65,16 +53,20 @@ public class MessageUtils {
 
     // Format a message for faction-only chat
     public Component factionChat(String factionTag, String playerName, String message) {
-        return Component.text("[F] ", NamedTextColor.LIGHT_PURPLE)
-                .append(LegacyComponentSerializer.legacySection().deserialize(factionTag))
-                .append(Component.text(playerName, NamedTextColor.WHITE))
-                .append(Component.text(": ", NamedTextColor.GRAY))
-                .append(Component.text(message, NamedTextColor.WHITE));
+        return scopedChat("[F] ", NamedTextColor.LIGHT_PURPLE, factionTag, playerName, message);
     }
 
     // Format a message for ally chat
     public Component allyChat(String factionTag, String playerName, String message) {
-        return Component.text("[A] ", NamedTextColor.DARK_AQUA)
+        return scopedChat("[A] ", NamedTextColor.DARK_AQUA, factionTag, playerName, message);
+    }
+
+    // Faction and ally chat share the same layout; only the leading scope label
+    // and its colour differ. The tag is deserialized as legacy text because it
+    // carries embedded colour codes from the faction's configured tag.
+    private Component scopedChat(String label, NamedTextColor labelColor,
+                                 String factionTag, String playerName, String message) {
+        return Component.text(label, labelColor)
                 .append(LegacyComponentSerializer.legacySection().deserialize(factionTag))
                 .append(Component.text(playerName, NamedTextColor.WHITE))
                 .append(Component.text(": ", NamedTextColor.GRAY))

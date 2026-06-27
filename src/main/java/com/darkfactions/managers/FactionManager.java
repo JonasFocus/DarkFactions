@@ -9,6 +9,7 @@ package com.darkfactions.managers;
 import com.darkfactions.DarkFactions;
 import com.darkfactions.models.Faction;
 import com.darkfactions.utils.ConfigManager;
+import com.darkfactions.utils.FactionRankings;
 import com.darkfactions.utils.YamlStore;
 
 import org.bukkit.Location;
@@ -19,6 +20,7 @@ import org.bukkit.configuration.file.YamlConfiguration;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -32,6 +34,10 @@ public class FactionManager {
     private final Map<UUID, Faction> factions;
     private final Map<UUID, UUID> playerFactionMap;
     private final Map<UUID, List<UUID>> pendingInvites;
+    // Case-insensitive name -> faction id index so getFactionByName is O(1)
+    // instead of a linear scan; it backs the many name lookups on the command
+    // path (show, accept, ally, enemy, admin, ...).
+    private final Map<String, UUID> factionsByName;
     private final File dataFile;
 
     public FactionManager(DarkFactions plugin) {
@@ -39,7 +45,14 @@ public class FactionManager {
         this.factions = new ConcurrentHashMap<>();
         this.playerFactionMap = new ConcurrentHashMap<>();
         this.pendingInvites = new ConcurrentHashMap<>();
+        this.factionsByName = new ConcurrentHashMap<>();
         this.dataFile = new File(plugin.getDataFolder(), "factions.yml");
+    }
+
+    // Canonical key for the name index: lower-cased with a fixed locale so the
+    // mapping never shifts with the server's default locale.
+    private static String nameKey(String name) {
+        return name.toLowerCase(Locale.ROOT);
     }
 
     // ==========================================
@@ -63,6 +76,7 @@ public class FactionManager {
         faction.setTntEnabled(cfg.isDefaultTnt());
 
         factions.put(faction.getFactionId(), faction);
+        factionsByName.put(nameKey(name), faction.getFactionId());
         playerFactionMap.put(leaderUuid, faction.getFactionId());
 
         plugin.requestSave();
@@ -82,6 +96,7 @@ public class FactionManager {
 
         pendingInvites.values().forEach(list -> list.remove(factionId));
         factions.remove(factionId);
+        factionsByName.remove(nameKey(faction.getName()));
 
         plugin.requestSave();
         return true;
@@ -92,10 +107,9 @@ public class FactionManager {
     }
 
     public Faction getFactionByName(String name) {
-        for (Faction faction : factions.values()) {
-            if (faction.getName().equalsIgnoreCase(name)) return faction;
-        }
-        return null;
+        if (name == null) return null;
+        UUID factionId = factionsByName.get(nameKey(name));
+        return factionId == null ? null : factions.get(factionId);
     }
 
     public Faction getPlayerFaction(UUID playerUuid) {
@@ -115,7 +129,9 @@ public class FactionManager {
         Faction faction = factions.get(factionId);
         if (faction == null) return false;
         if (isFactionNameTaken(newName) && !faction.getName().equalsIgnoreCase(newName)) return false;
+        factionsByName.remove(nameKey(faction.getName()));
         faction.setName(newName);
+        factionsByName.put(nameKey(newName), factionId);
         plugin.requestSave();
         return true;
     }
@@ -258,21 +274,15 @@ public class FactionManager {
     public int getFactionCount() { return factions.size(); }
 
     public List<Faction> getTopFactionsByPower(int limit) {
-        List<Faction> sorted = new ArrayList<>(factions.values());
-        sorted.sort((a, b) -> Double.compare(b.getPower(), a.getPower()));
-        return sorted.subList(0, Math.min(limit, sorted.size()));
+        return FactionRankings.top(factions.values(), FactionRankings.BY_POWER, limit);
     }
 
     public List<Faction> getTopFactionsByElixir(int limit) {
-        List<Faction> sorted = new ArrayList<>(factions.values());
-        sorted.sort((a, b) -> Double.compare(b.getElixir(), a.getElixir()));
-        return sorted.subList(0, Math.min(limit, sorted.size()));
+        return FactionRankings.top(factions.values(), FactionRankings.BY_ELIXIR, limit);
     }
 
     public List<Faction> getTopFactionsByMembers(int limit) {
-        List<Faction> sorted = new ArrayList<>(factions.values());
-        sorted.sort((a, b) -> Integer.compare(b.getMemberCount(), a.getMemberCount()));
-        return sorted.subList(0, Math.min(limit, sorted.size()));
+        return FactionRankings.top(factions.values(), FactionRankings.BY_MEMBERS, limit);
     }
 
     // ==========================================
@@ -382,6 +392,7 @@ public class FactionManager {
                 }
 
                 factions.put(faction.getFactionId(), faction);
+                factionsByName.put(nameKey(faction.getName()), faction.getFactionId());
                 for (UUID memberUuid : faction.getMembers()) {
                     playerFactionMap.put(memberUuid, faction.getFactionId());
                 }

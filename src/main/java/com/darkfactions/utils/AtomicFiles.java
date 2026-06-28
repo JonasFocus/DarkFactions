@@ -62,10 +62,14 @@ public final class AtomicFiles {
         }
 
         // Keep the previous good copy as a backup for recovery on a corrupt write.
-        // The backup itself is deliberately not fsynced: it only needs to be
-        // recoverable, and the just-fsynced tmp is the authoritative new content.
+        // Fsync the backup too so a crash after the rename doesn't leave both files
+        // pointing to incomplete data.
         if (target.exists()) {
-            Files.copy(target.toPath(), backupFile(target).toPath(), StandardCopyOption.REPLACE_EXISTING);
+            File bak = backupFile(target);
+            Files.copy(target.toPath(), bak.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            try (FileChannel ch = FileChannel.open(bak.toPath(), StandardOpenOption.WRITE)) {
+                ch.force(true);
+            }
         }
 
         try {

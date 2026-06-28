@@ -91,7 +91,7 @@ public class PowerManager {
 
         long ticks = 20L * powerRegenInterval;
         if (ticks > 0) {
-            regenTaskId = plugin.getServer().getScheduler().runTaskTimerAsynchronously(plugin, () -> {
+            regenTaskId = plugin.getServer().getScheduler().runTaskTimer(plugin, () -> {
                 regenAllPlayerPower();
             }, ticks, ticks).getTaskId();
         }
@@ -256,7 +256,7 @@ public class PowerManager {
                 playerDataMap.put(playerUuid, data);
 
             } catch (Exception e) {
-                plugin.getLogger().severe("Failed to load player data for key: " + key);
+                plugin.getLogger().log(java.util.logging.Level.SEVERE, "Failed to load player data for: " + key, e);
             }
         }
 

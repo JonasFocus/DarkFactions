@@ -22,7 +22,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 public class DarkFactions extends JavaPlugin {
 
     // Singleton instance so other classes can access the plugin easily
-    private static DarkFactions instance;
+    private static volatile DarkFactions instance;
 
     // All our managers that handle the heavy lifting
     private FactionManager factionManager;
@@ -188,6 +188,8 @@ public class DarkFactions extends JavaPlugin {
         }
 
         saveAll();
+
+        instance = null;
 
         getLogger().info("DarkFactions has been disabled. See you next time!");
     }

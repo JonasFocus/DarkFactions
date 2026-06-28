@@ -92,6 +92,7 @@ public class FactionManager {
         playerFactionMap.remove(faction.getLeaderUuid());
 
         pendingInvites.values().forEach(list -> list.remove(factionId));
+        pendingInvites.values().removeIf(List::isEmpty);
         factions.remove(factionId);
         factionsByName.remove(nameKey(faction.getName()));
 
@@ -156,6 +157,9 @@ public class FactionManager {
     public boolean removePlayerFromFaction(UUID playerUuid) {
         Faction faction = getPlayerFaction(playerUuid);
         if (faction == null) return false;
+
+        // Clean up chat mode state if the player had one
+        plugin.getFactionCommand().clearChatMode(playerUuid);
 
         faction.removeMember(playerUuid);
         playerFactionMap.remove(playerUuid);
@@ -253,8 +257,10 @@ public class FactionManager {
     public Location getFactionHome(UUID factionId) {
         Faction faction = factions.get(factionId);
         if (faction == null || !faction.hasHome()) return null;
+        org.bukkit.World world = plugin.getServer().getWorld(faction.getWorldName());
+        if (world == null) return null;
         return new Location(
-                plugin.getServer().getWorld(faction.getWorldName()),
+                world,
                 faction.getHomeX(), faction.getHomeY(), faction.getHomeZ(),
                 faction.getHomeYaw(), faction.getHomePitch()
         );
@@ -397,9 +403,7 @@ public class FactionManager {
                 plugin.getLogger().info("Loaded faction: " + faction.getName());
 
             } catch (Exception e) {
-                // Include the cause so a single corrupt entry can be diagnosed
-                // instead of silently disappearing from the loaded roster.
-                plugin.getLogger().severe("Failed to load faction with key: " + key + " (" + e.getMessage() + ")");
+                plugin.getLogger().log(java.util.logging.Level.SEVERE, "Failed to load faction: " + key, e);
             }
         }
     }

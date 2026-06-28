@@ -6,7 +6,7 @@
 name: DarkFactions
 version: 3.1
 main: com.darkfactions.DarkFactions
-api-version: 26.1
+api-version: 1.20
 
 # Who made this awesome plugin
 author: DarkServer Team

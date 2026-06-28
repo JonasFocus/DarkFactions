@@ -41,7 +41,7 @@ public class FactionTabCompleter implements TabCompleter {
         // Other
         "fly",
         // Admin
-        "admin"
+        "admin", "reload"
     );
 
     // Admin subcommands

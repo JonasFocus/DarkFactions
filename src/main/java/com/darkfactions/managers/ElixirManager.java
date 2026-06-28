@@ -15,9 +15,9 @@ import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 
 import java.io.File;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class ElixirManager {
 
@@ -37,7 +37,7 @@ public class ElixirManager {
 
     public ElixirManager(DarkFactions plugin) {
         this.plugin = plugin;
-        this.pendingElixir = new HashMap<>();
+        this.pendingElixir = new ConcurrentHashMap<>();
         this.dataFile = new File(plugin.getDataFolder(), "elixir.yml");
 
         reloadConfig();
@@ -207,7 +207,7 @@ public class ElixirManager {
                 double amount = config.getDouble("pending." + key);
                 pendingElixir.put(playerUuid, amount);
             } catch (Exception e) {
-                plugin.getLogger().severe("Failed to load pending elixir for key: " + key);
+                plugin.getLogger().log(java.util.logging.Level.SEVERE, "Failed to load pending elixir for: " + key, e);
             }
         }
 

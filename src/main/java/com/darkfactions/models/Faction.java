@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
@@ -464,6 +465,20 @@ public class Faction {
 
     // Get the total number of members including leader
     public int getMemberCount() {
-        return members.size();
+        synchronized (members) {
+            return members.size();
+        }
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof Faction other)) return false;
+        return Objects.equals(factionId, other.factionId);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hashCode(factionId);
     }
 }

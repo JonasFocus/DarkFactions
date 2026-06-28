@@ -19,8 +19,10 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 public class FactionCommand implements CommandExecutor {
@@ -58,23 +60,26 @@ public class FactionCommand implements CommandExecutor {
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
 
-        // Make sure the sender is a player (console cant use most faction commands)
-        if (!(sender instanceof Player)) {
-            sender.sendMessage(msg.error("Only players can use faction commands!"));
-            return true;
-        }
-
-        Player player = (Player) sender;
-        UUID playerUuid = player.getUniqueId();
-
-        // If no arguments, show help
+        // Console can use admin and read-only commands; player-only commands
+        // check sender instanceof Player individually.
         if (args.length == 0) {
-            sendHelp(player);
+            if (sender instanceof Player) {
+                sendHelp((Player) sender);
+            } else {
+                sender.sendMessage(msg.error("Usage: /f <subcommand> [args]"));
+            }
             return true;
         }
 
         // Grab the subcommand (lowercase for consistency)
         String subCommand = args[0].toLowerCase();
+
+        // Handle console-safe commands immediately before the player-cast
+        if (!(sender instanceof Player)) {
+            return handleConsole(sender, subCommand, args);
+        }
+
+        Player player = (Player) sender;
 
         // ==========================================
         // Route to the right subcommand handler
@@ -1733,12 +1738,157 @@ public class FactionCommand implements CommandExecutor {
     }
 
     // ==========================================
+    // Console handler — allows admin and read-only commands from server console
+    // ==========================================
+    private boolean handleConsole(CommandSender sender, String subCommand, String[] args) {
+        switch (subCommand) {
+            case "list":
+                List<Faction> factions = plugin.getFactionManager().getAllFactions();
+                if (factions.isEmpty()) {
+                    sender.sendMessage(msg.error("No factions exist yet."));
+                    return true;
+                }
+                sender.sendMessage(msg.header("Factions (" + factions.size() + ")"));
+                for (Faction f : factions) {
+                    sender.sendMessage(msg.info(
+                            f.getName() + " - " + f.getMemberCount() + " members - "
+                            + String.format("%.0f", f.getPower()) + " power - "
+                            + plugin.getClaimManager().getClaimCount(f.getFactionId()) + " claims"
+                    ));
+                }
+                return true;
+
+            case "top":
+                return handleConsoleTop(sender, args);
+
+            case "reload":
+                return handleReloadConsole(sender);
+
+            case "admin":
+                if (args.length >= 2) {
+                    return handleAdminConsole(sender, args);
+                }
+                sender.sendMessage(msg.error("Usage: /f admin <subcommand> [args]"));
+                return true;
+
+            default:
+                sender.sendMessage(msg.error("Only players can use that command."));
+                return true;
+        }
+    }
+
+    private boolean handleConsoleTop(CommandSender sender, String[] args) {
+        String sortBy = args.length >= 2 ? args[1].toLowerCase() : "power";
+        int limit = plugin.getConfigManager().getLeaderboardDefaultLimit();
+        List<Faction> sorted;
+
+        switch (sortBy) {
+            case "elixir":
+                sorted = plugin.getFactionManager().getTopFactionsByElixir(limit);
+                break;
+            case "members":
+                sorted = plugin.getFactionManager().getTopFactionsByMembers(limit);
+                break;
+            default:
+                sorted = plugin.getFactionManager().getTopFactionsByPower(limit);
+                break;
+        }
+
+        if (sorted.isEmpty()) {
+            sender.sendMessage(msg.error("No factions to show!"));
+            return true;
+        }
+
+        int rank = 1;
+        for (Faction f : sorted) {
+            sender.sendMessage(msg.info(rank + ". " + f.getName() + " - " + String.format("%.1f", f.getPower()) + " power"));
+            rank++;
+        }
+        return true;
+    }
+
+    private boolean handleAdminConsole(CommandSender sender, String[] args) {
+        if (args.length < 3) return false;
+        String adminSub = args[1].toLowerCase();
+        switch (adminSub) {
+            case "list":
+                return handleListConsole(sender);
+            case "power":
+                if (args.length < 4) return false;
+                Faction powerFaction = plugin.getFactionManager().getFactionByName(args[2]);
+                if (powerFaction == null) {
+                    sender.sendMessage(msg.error("Faction not found!"));
+                    return true;
+                }
+                try {
+                    double amount = Double.parseDouble(args[3]);
+                    powerFaction.setPower(amount);
+                    sender.sendMessage(msg.success("Set " + powerFaction.getName() + "'s power to " + amount));
+                } catch (NumberFormatException e) {
+                    sender.sendMessage(msg.error("Invalid number!"));
+                }
+                return true;
+            case "elixir":
+                if (args.length < 4) return false;
+                Faction elixirFaction = plugin.getFactionManager().getFactionByName(args[2]);
+                if (elixirFaction == null) {
+                    sender.sendMessage(msg.error("Faction not found!"));
+                    return true;
+                }
+                try {
+                    double amount = Double.parseDouble(args[3]);
+                    elixirFaction.setElixir(amount);
+                    sender.sendMessage(msg.success("Set " + elixirFaction.getName() + "'s elixir to " + amount));
+                } catch (NumberFormatException e) {
+                    sender.sendMessage(msg.error("Invalid number!"));
+                }
+                return true;
+            case "remove":
+                if (args.length < 3) return false;
+                Faction removeFaction = plugin.getFactionManager().getFactionByName(args[2]);
+                if (removeFaction == null) {
+                    sender.sendMessage(msg.error("Faction not found!"));
+                    return true;
+                }
+                String removedName = removeFaction.getName();
+                plugin.getClaimManager().removeAllFactionClaims(removeFaction.getFactionId());
+                plugin.getFactionManager().deleteFaction(removeFaction.getFactionId());
+                sender.sendMessage(msg.success("Force removed faction: " + removedName));
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private boolean handleListConsole(CommandSender sender) {
+        List<Faction> factions = plugin.getFactionManager().getAllFactions();
+        if (factions.isEmpty()) {
+            sender.sendMessage(msg.error("No factions exist yet."));
+            return true;
+        }
+        sender.sendMessage(msg.header("Factions (" + factions.size() + ")"));
+        for (Faction f : factions) {
+            sender.sendMessage(msg.info(
+                    f.getName() + " - " + f.getMemberCount() + " members - "
+                    + String.format("%.0f", f.getPower()) + " power - "
+                    + plugin.getClaimManager().getClaimCount(f.getFactionId()) + " claims"
+            ));
+        }
+        return true;
+    }
+
+    // ==========================================
     // Chat Mode Methods - called by the listener
     // ==========================================
 
     // Check if a player is in faction chat mode
     public String getChatMode(UUID playerUuid) {
         return chatModeMap.get(playerUuid);
+    }
+
+    // Clear chat mode for a player (e.g. when kicked/leaves)
+    public void clearChatMode(UUID playerUuid) {
+        chatModeMap.remove(playerUuid);
     }
 
     // Check if a player has auto-claim enabled
@@ -1757,16 +1907,23 @@ public class FactionCommand implements CommandExecutor {
             return true;
         }
 
-        // Reload everything
+        reloadAllConfigs();
+        player.sendMessage(msg.success("DarkFactions config reloaded!"));
+
+        return true;
+    }
+
+    private boolean handleReloadConsole(CommandSender sender) {
+        reloadAllConfigs();
+        sender.sendMessage(msg.success("DarkFactions config reloaded!"));
+        return true;
+    }
+
+    private void reloadAllConfigs() {
         plugin.getConfigManager().reload();
         plugin.getPowerManager().reloadConfig();
         plugin.getElixirManager().reloadConfig();
         plugin.getClaimManager().reloadConfig();
-
-        player.sendMessage(msg.success("DarkFactions config reloaded!"));
-        player.sendMessage(msg.info("All settings have been refreshed from config.yml."));
-
-        return true;
     }
 
     // ==========================================

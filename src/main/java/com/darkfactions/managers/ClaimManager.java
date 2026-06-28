@@ -16,6 +16,8 @@ import com.darkfactions.utils.YamlStore;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 
+import java.util.logging.Level;
+
 import org.bukkit.Chunk;
 import org.bukkit.Location;
 import org.bukkit.World;
@@ -32,6 +34,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class ClaimManager {
 
@@ -53,8 +56,8 @@ public class ClaimManager {
 
     public ClaimManager(DarkFactions plugin) {
         this.plugin = plugin;
-        this.claimMap = new HashMap<>();
-        this.factionClaimCount = new HashMap<>();
+        this.claimMap = new ConcurrentHashMap<>();
+        this.factionClaimCount = new ConcurrentHashMap<>();
         this.bypassPlayers = new HashSet<>();
         this.dataFile = new File(plugin.getDataFolder(), "claims.yml");
 
@@ -188,12 +191,16 @@ public class ClaimManager {
                 factionClaimCount.remove(factionId);
             }
 
-            // Lose elixir for unclaiming
+            // Lose elixir for unclaiming — skip silently if the faction doesn't
+            // have enough, rather than blocking the unclaim entirely.
             double lostElixir = plugin.getConfigManager().getElixirPerChunkLost();
             if (lostElixir > 0) {
                 Faction faction = plugin.getFactionManager().getFaction(factionId);
                 if (faction != null) {
-                    faction.removeElixir(lostElixir);
+                    if (!faction.removeElixir(lostElixir)) {
+                        plugin.getLogger().warning("Faction " + faction.getName()
+                                + " had insufficient elixir for unclaim penalty (" + lostElixir + ")");
+                    }
                 }
             }
 
@@ -396,7 +403,7 @@ public class ClaimManager {
                 totalClaims += count;
 
             } catch (Exception e) {
-                plugin.getLogger().severe("Failed to load claims for faction: " + factionIdStr);
+                plugin.getLogger().log(java.util.logging.Level.SEVERE, "Failed to load claims for: " + factionIdStr, e);
             }
         }
 

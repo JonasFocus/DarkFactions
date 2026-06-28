@@ -18,6 +18,7 @@ import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
@@ -28,6 +29,9 @@ import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.event.block.BlockExplodeEvent;
+import org.bukkit.event.block.BlockPistonExtendEvent;
+import org.bukkit.event.block.BlockPistonRetractEvent;
 
 import io.papermc.paper.event.player.AsyncChatEvent;
 import net.kyori.adventure.text.Component;
@@ -58,7 +62,7 @@ public class FactionListener implements Listener {
     // TERRITORY PROTECTION - Block Break
     // Prevents players from breaking blocks in enemy territory
     // ==========================================
-    @EventHandler
+    @EventHandler(priority = EventPriority.HIGHEST)
     public void onBlockBreak(BlockBreakEvent event) {
         Faction denier = protectionDenier(event.getPlayer(), event.getBlock());
         if (denier != null) {
@@ -72,7 +76,7 @@ public class FactionListener implements Listener {
     // ==========================================
     // TERRITORY PROTECTION - Block Place
     // ==========================================
-    @EventHandler
+    @EventHandler(priority = EventPriority.HIGHEST)
     public void onBlockPlace(BlockPlaceEvent event) {
         Faction denier = protectionDenier(event.getPlayer(), event.getBlock());
         if (denier != null) {
@@ -87,7 +91,7 @@ public class FactionListener implements Listener {
     // TERRITORY PROTECTION - Chest Interaction
     // Protects chests, furnaces, doors, etc.
     // ==========================================
-    @EventHandler
+    @EventHandler(priority = EventPriority.HIGHEST)
     public void onPlayerInteract(PlayerInteractEvent event) {
         // Only block interactions (not air)
         if (event.getClickedBlock() == null) {
@@ -185,7 +189,7 @@ public class FactionListener implements Listener {
     // PVP Protection - Faction vs Faction
     // Handles friendly fire toggle and territory PvP
     // ==========================================
-    @EventHandler
+    @EventHandler(priority = EventPriority.HIGHEST)
     public void onEntityDamage(EntityDamageByEntityEvent event) {
         if (!(event.getEntity() instanceof Player victim)) {
             return;
@@ -223,16 +227,36 @@ public class FactionListener implements Listener {
             return;
         }
 
-        // Territory check: a player standing in their own claim while a non-enemy
-        // attacks them. Standard factions behavior leaves this hit allowed, so we
-        // only short-circuit out of the handler here rather than cancelling.
+        // Territory check: enforce PvP config per territory type
         Chunk chunk = victim.getLocation().getChunk();
         UUID chunkOwner = plugin.getClaimManager().getClaimOwner(chunk);
 
-        if (chunkOwner != null && victimFaction != null &&
-            chunkOwner.equals(victimFaction.getFactionId())) {
-
+        if (chunkOwner == null) {
+            // Wilderness — respect wilderness PvP toggle
+            if (!plugin.getConfigManager().isWildernessPvp()) {
+                event.setCancelled(true);
+                return;
+            }
+        } else if (victimFaction != null && chunkOwner.equals(victimFaction.getFactionId())) {
+            // Victim is in their own territory
+            if (!plugin.getConfigManager().isOwnTerritoryPvp()) {
+                event.setCancelled(true);
+                return;
+            }
+            // Allow non-enemies within own territory (standard factions behavior)
             if (attackerFaction != null && !victimFaction.isEnemy(attackerFaction.getFactionId())) {
+                return;
+            }
+        } else if (victimFaction != null && victimFaction.isAlly(chunkOwner)) {
+            // Victim is in allied territory
+            if (!plugin.getConfigManager().isAllyTerritoryPvp()) {
+                event.setCancelled(true);
+                return;
+            }
+        } else if (chunkOwner != null) {
+            // Victim is in enemy/unaffiliated territory
+            if (!plugin.getConfigManager().isEnemyTerritoryPvp()) {
+                event.setCancelled(true);
                 return;
             }
         }
@@ -242,7 +266,7 @@ public class FactionListener implements Listener {
     // TNT Protection - Entity Explode
     // Respects faction TNT toggle
     // ==========================================
-    @EventHandler
+    @EventHandler(priority = EventPriority.HIGHEST)
     public void onEntityExplode(EntityExplodeEvent event) {
         // Check each block in the explosion
         event.blockList().removeIf(block -> {
@@ -261,16 +285,67 @@ public class FactionListener implements Listener {
     }
 
     // ==========================================
+    // Block Explode Protection - Beds / Respawn Anchors
+    // Catches explosions that bypass EntityExplodeEvent
+    // ==========================================
+    @EventHandler(priority = EventPriority.HIGHEST)
+    public void onBlockExplode(BlockExplodeEvent event) {
+        event.blockList().removeIf(block -> {
+            UUID ownerId = plugin.getClaimManager().getLocationOwner(block.getLocation());
+            if (ownerId == null) return false;
+
+            Faction ownerFaction = plugin.getFactionManager().getFaction(ownerId);
+            return ownerFaction != null && !ownerFaction.isTntEnabled();
+        });
+    }
+
+    // ==========================================
+    // Piston Protection - Prevent pushing blocks out of claims
+    // ==========================================
+    @EventHandler(priority = EventPriority.HIGHEST)
+    public void onPistonExtend(BlockPistonExtendEvent event) {
+        for (Block block : event.getBlocks()) {
+            Block target = block.getRelative(event.getDirection());
+            UUID sourceOwner = plugin.getClaimManager().getLocationOwner(block.getLocation());
+            UUID targetOwner = plugin.getClaimManager().getLocationOwner(target.getLocation());
+            if (sourceOwner == null || !sourceOwner.equals(targetOwner)) {
+                if (targetOwner != null) {
+                    event.setCancelled(true);
+                    return;
+                }
+            }
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST)
+    public void onPistonRetract(BlockPistonRetractEvent event) {
+        for (Block block : event.getBlocks()) {
+            Block target = block.getRelative(event.getDirection());
+            UUID sourceOwner = plugin.getClaimManager().getLocationOwner(block.getLocation());
+            UUID targetOwner = plugin.getClaimManager().getLocationOwner(target.getLocation());
+            if (sourceOwner == null || !sourceOwner.equals(targetOwner)) {
+                if (targetOwner != null) {
+                    event.setCancelled(true);
+                    return;
+                }
+            }
+        }
+    }
+
+    // ==========================================
     // PLAYER MOVE - Territory Border Detection & AutoClaim
     // Shows entry/exit messages when crossing borders
     // Handles auto-claiming chunks
     // ==========================================
+    // Player move — use NORMAL priority since this handler doesn't cancel events;
+    // HIGHEST is reserved for the cancellation handlers above.
     @EventHandler
     public void onPlayerMove(PlayerMoveEvent event) {
         Player player = event.getPlayer();
 
         // Only check on block changes, not just looking around
         if (event.getFrom().getBlockX() == event.getTo().getBlockX() &&
+            event.getFrom().getBlockY() == event.getTo().getBlockY() &&
             event.getFrom().getBlockZ() == event.getTo().getBlockZ()) {
             return;
         }
@@ -431,6 +506,11 @@ public class FactionListener implements Listener {
         }
 
         // PvP death: victim takes the PvP power loss, killer gains power.
+        // Ignore self-inflicted kills (e.g. damage potions, explosions)
+        if (killer.equals(victim)) {
+            plugin.getPowerManager().onPlayerDeath(victimUuid);
+            return;
+        }
         plugin.getPowerManager().onPlayerDeath(victimUuid);
 
         UUID killerUuid = killer.getUniqueId();

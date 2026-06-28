@@ -7,7 +7,6 @@ package com.darkfactions.models;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -76,10 +75,6 @@ public class Faction {
     // TNT toggle - if false, TNT does no damage in faction territory
     private boolean tntEnabled;
 
-    // Claimed chunks as "world:x:z" strings (loaded separately by ClaimManager)
-    // This is a transient field - claims are managed by ClaimManager
-    private transient Set<String> claimedChunks;
-
     // ==========================================
     // Constructor - Makes a brand new faction!
     // ==========================================
@@ -101,7 +96,6 @@ public class Faction {
         this.tag = ""; // No tag by default
         this.pvpEnabled = false; // Friendly fire off by default
         this.tntEnabled = true; // TNT on by default
-        this.claimedChunks = new HashSet<>();
 
         // Add the leader as the first member
         this.members.add(leaderUuid);
@@ -113,7 +107,6 @@ public class Faction {
         this.officers = newMemberSet();
         this.enemies = newMemberSet();
         this.allies = newMemberSet();
-        this.claimedChunks = new HashSet<>();
     }
 
     // Order-preserving, thread-safe set used for members/officers/enemies/allies.
@@ -303,38 +296,6 @@ public class Faction {
             return "[" + tag + "] ";
         }
         return "";
-    }
-
-    // ==========================================
-    // Claim Methods
-    // ==========================================
-
-    public Set<String> getClaimedChunks() {
-        if (claimedChunks == null) {
-            claimedChunks = new HashSet<>();
-        }
-        return claimedChunks;
-    }
-
-    public void setClaimedChunks(Set<String> claimedChunks) {
-        this.claimedChunks = new HashSet<>(claimedChunks);
-    }
-
-    public void addClaimedChunk(String chunkKey) {
-        if (claimedChunks == null) {
-            claimedChunks = new HashSet<>();
-        }
-        claimedChunks.add(chunkKey);
-    }
-
-    public void removeClaimedChunk(String chunkKey) {
-        if (claimedChunks != null) {
-            claimedChunks.remove(chunkKey);
-        }
-    }
-
-    public int getTotalClaims() {
-        return claimedChunks != null ? claimedChunks.size() : 0;
     }
 
     // ==========================================

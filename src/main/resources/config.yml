@@ -442,6 +442,26 @@ leaderboard:
     - land
 
 # ==========================================
+# COMBAT SETTINGS
+# Controls combat tagging and logout behavior
+# ==========================================
+combat:
+  # How long a player stays combat-tagged after PvP damage (seconds)
+  tag-duration-seconds: 30
+
+  # Kill players who log out while combat tagged
+  kill-on-quit: true
+
+  # Disable /f fly when combat tagged
+  prevent-fly: true
+
+  # Disable /f home when combat tagged
+  prevent-home: true
+
+  # Warmup duration for /f logout (seconds, 0 = instant)
+  logout-warmup-seconds: 10
+
+# ==========================================
 # ADMIN & ECONOMY SETTINGS
 # ==========================================
 admin:

@@ -4,6 +4,7 @@ import com.darkfactions.commands.FactionCommand;
 import com.darkfactions.commands.FactionTabCompleter;
 import com.darkfactions.listeners.FactionListener;
 import com.darkfactions.managers.ClaimManager;
+import com.darkfactions.managers.CombatManager;
 import com.darkfactions.managers.ElixirManager;
 import com.darkfactions.managers.FactionManager;
 import com.darkfactions.managers.PlayerNameCache;
@@ -28,6 +29,7 @@ public class DarkFactions extends JavaPlugin {
     private SaveQueue saveQueue;
     private DataStore dataStore;
 
+    private CombatManager combatManager;
     private FactionManager factionManager;
     private PowerManager powerManager;
     private ElixirManager elixirManager;
@@ -52,6 +54,7 @@ public class DarkFactions extends JavaPlugin {
 
         initDatabase();
 
+        this.combatManager = new CombatManager(this);
         this.factionManager = new FactionManager(this);
         this.powerManager = new PowerManager(this);
         this.elixirManager = new ElixirManager(this);
@@ -160,6 +163,7 @@ public class DarkFactions extends JavaPlugin {
     public DatabaseManager getDatabaseManager() { return databaseManager; }
     public DataStore getDataStore() { return dataStore; }
     public SaveQueue getSaveQueue() { return saveQueue; }
+    public CombatManager getCombatManager() { return combatManager; }
     public FactionManager getFactionManager() { return factionManager; }
     public PowerManager getPowerManager() { return powerManager; }
     public ElixirManager getElixirManager() { return elixirManager; }

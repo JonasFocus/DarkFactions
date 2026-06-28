@@ -219,6 +219,15 @@ public class ConfigManager {
     public boolean isLogAdminActions() { return config.getBoolean("admin.log-admin-actions", true); }
 
     // ==========================================
+    // COMBAT
+    // ==========================================
+    public int getCombatTagDuration() { return config.getInt("combat.tag-duration-seconds", 30); }
+    public boolean isCombatTagKillOnQuit() { return config.getBoolean("combat.kill-on-quit", true); }
+    public boolean isCombatTagPreventFly() { return config.getBoolean("combat.prevent-fly", true); }
+    public boolean isCombatTagPreventHome() { return config.getBoolean("combat.prevent-home", true); }
+    public int getCombatLogoutWarmup() { return config.getInt("combat.logout-warmup-seconds", 10); }
+
+    // ==========================================
     // ECONOMY (Vault)
     // ==========================================
     public boolean isVaultEnabled() { return config.getBoolean("economy.vault-enabled", false); }

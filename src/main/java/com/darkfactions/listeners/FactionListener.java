@@ -260,6 +260,13 @@ public class FactionListener implements Listener {
                 return;
             }
         }
+
+        // Combat tag both players
+        plugin.getCombatManager().tag(victim.getUniqueId());
+        plugin.getCombatManager().tag(attacker.getUniqueId());
+
+        // Cancel any pending home teleport for the victim
+        plugin.getFactionCommand().cancelWarmup(victim.getUniqueId(), true);
     }
 
     // ==========================================
@@ -350,6 +357,11 @@ public class FactionListener implements Listener {
             return;
         }
 
+        // Cancel home warmup on move
+        if (event.getFrom().getBlockX() != event.getTo().getBlockX() || event.getFrom().getBlockZ() != event.getTo().getBlockZ()) {
+            plugin.getFactionCommand().cancelWarmup(player.getUniqueId(), false);
+        }
+
         Chunk toChunk = event.getTo().getChunk();
         String toKey = toChunk.getWorld().getName() + ":" + toChunk.getX() + ":" + toChunk.getZ();
 
@@ -423,6 +435,12 @@ public class FactionListener implements Listener {
         // Flight check - disable flight when leaving own territory
         // ==========================================
         if (player.getAllowFlight() && plugin.getConfigManager().isFlightAutoDisableOnExit()) {
+            // Disable flight if combat tagged and config says so
+            if (plugin.getConfigManager().isCombatTagPreventFly() && plugin.getCombatManager().isTagged(player.getUniqueId())) {
+                player.setAllowFlight(false);
+                player.setFlying(false);
+                player.sendMessage(plugin.getMessageUtils().error("Flight disabled during combat!"));
+            }
             Faction playerFaction = plugin.getFactionManager().getPlayerFaction(player.getUniqueId());
             if (playerFaction == null || newOwnerId == null ||
                 !newOwnerId.equals(playerFaction.getFactionId())) {
@@ -483,7 +501,14 @@ public class FactionListener implements Listener {
 
         plugin.getPowerManager().getPlayerData(playerUuid).setLastLogoutTime(System.currentTimeMillis());
 
-        // Clean up tracking data
+        // Combat tag check — punish combat loggers
+        if (plugin.getCombatManager().handleQuit(playerUuid)) {
+            if (plugin.getConfigManager().isCombatTagKillOnQuit()) {
+                player.setHealth(0);
+                plugin.getLogger().warning(player.getName() + " combat-logged and was killed.");
+            }
+        }
+
         playerLastChunk.remove(playerUuid);
     }
 
@@ -509,12 +534,17 @@ public class FactionListener implements Listener {
         // Ignore self-inflicted kills (e.g. damage potions, explosions)
         if (killer.equals(victim)) {
             plugin.getPowerManager().onPlayerDeath(victimUuid);
+            plugin.getCombatManager().clear(victimUuid);
             return;
         }
         plugin.getPowerManager().onPlayerDeath(victimUuid);
 
         UUID killerUuid = killer.getUniqueId();
         plugin.getPowerManager().onPlayerKill(killerUuid);
+
+        // Clear combat tags
+        plugin.getCombatManager().clear(victimUuid);
+        plugin.getCombatManager().clear(killerUuid);
 
         // Check faction vs faction combat
         Faction victimFaction = plugin.getFactionManager().getPlayerFaction(victimUuid);

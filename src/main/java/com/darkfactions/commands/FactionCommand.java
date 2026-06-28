@@ -17,6 +17,7 @@ import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
+import org.bukkit.scheduler.BukkitTask;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -42,6 +43,16 @@ public class FactionCommand implements CommandExecutor {
     // Cooldowns for /f home to prevent spam
     private final Map<UUID, Long> homeCooldowns;
 
+    // Pending home teleport warmups — tracked by BukkitTask so they can be cancelled
+    // on movement or damage.
+    private final Map<UUID, BukkitTask> pendingWarmups;
+
+    private static final class ChatMode {
+        static final String FACTION = "faction";
+        static final String ALLY = "ally";
+        private ChatMode() {}
+    }
+
     // ==========================================
     // Constructor
     // ==========================================
@@ -51,6 +62,7 @@ public class FactionCommand implements CommandExecutor {
         this.autoClaimMap = new HashMap<>();
         this.chatModeMap = new HashMap<>();
         this.homeCooldowns = new HashMap<>();
+        this.pendingWarmups = new HashMap<>();
     }
 
     // ==========================================
@@ -135,6 +147,8 @@ public class FactionCommand implements CommandExecutor {
             case "elixir":    return handleElixir(player);
             case "elixirbal":
             case "bal":       return handleElixirBal(player, args);
+            case "shop":      return handleShop(player, args);
+            case "transfer":  return handleElixirTransfer(player, args);
 
             // ==========================================
             // Faction customization
@@ -172,6 +186,7 @@ public class FactionCommand implements CommandExecutor {
             // Fly command
             // ==========================================
             case "fly":       return handleFly(player);
+            case "logout":    return handleLogout(player);
 
             // ==========================================
             // If they typed something we dont recognize
@@ -754,7 +769,7 @@ public class FactionCommand implements CommandExecutor {
 
     // ==========================================
     // HOME - /f home
-    // Teleports the player to the faction home
+    // Teleports the player to the faction home with warmup
     // ==========================================
     private boolean handleHome(Player player) {
 
@@ -766,12 +781,16 @@ public class FactionCommand implements CommandExecutor {
             return true;
         }
 
-        // Enforce per-player /f home cooldown (0 disables it)
+        // Combat tag check — no teleporting out of combat
+        if (plugin.getConfigManager().isCombatTagPreventHome() && plugin.getCombatManager().isTagged(player.getUniqueId())) {
+            player.sendMessage(msg.error("You cannot teleport home during combat!"));
+            return true;
+        }
+
         int cooldown = plugin.getConfigManager().getHomeCooldown();
         if (cooldown > 0) {
             long lastUsed = homeCooldowns.getOrDefault(player.getUniqueId(), 0L);
             long elapsed = (System.currentTimeMillis() - lastUsed) / 1000;
-
             if (elapsed < cooldown) {
                 long remaining = cooldown - elapsed;
                 player.sendMessage(msg.error("You must wait " + remaining + " more seconds to use /f home!"));
@@ -785,13 +804,40 @@ public class FactionCommand implements CommandExecutor {
             return true;
         }
 
-        // Set cooldown
-        homeCooldowns.put(player.getUniqueId(), System.currentTimeMillis());
-
-        player.teleport(home);
-        player.sendMessage(msg.success("Welcome to your faction home!"));
+        int delay = plugin.getConfigManager().getHomeTeleportDelay();
+        if (delay > 0) {
+            player.sendMessage(msg.info("Teleporting in " + delay + " seconds... don't move."));
+            int warmupTicks = delay * 20;
+            BukkitTask task = plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+                pendingWarmups.remove(player.getUniqueId());
+                homeCooldowns.put(player.getUniqueId(), System.currentTimeMillis());
+                player.teleport(home);
+                player.sendMessage(msg.success("Welcome to your faction home!"));
+            }, warmupTicks);
+            pendingWarmups.put(player.getUniqueId(), task);
+        } else {
+            homeCooldowns.put(player.getUniqueId(), System.currentTimeMillis());
+            player.teleport(home);
+            player.sendMessage(msg.success("Welcome to your faction home!"));
+        }
 
         return true;
+    }
+
+    // Cancel a pending warmup for a player. Called from the listener on move/damage.
+    public void cancelWarmup(UUID playerUuid, boolean dueToDamage) {
+        BukkitTask task = pendingWarmups.remove(playerUuid);
+        if (task != null) {
+            task.cancel();
+            Player player = Bukkit.getPlayer(playerUuid);
+            if (player != null && player.isOnline()) {
+                if (dueToDamage) {
+                    player.sendMessage(msg.error("Teleport cancelled due to damage!"));
+                } else {
+                    player.sendMessage(msg.error("Teleport cancelled!"));
+                }
+            }
+        }
     }
 
     // ==========================================
@@ -1225,6 +1271,145 @@ public class FactionCommand implements CommandExecutor {
 
         double elixir = plugin.getElixirManager().getFactionElixir(faction.getFactionId());
         player.sendMessage(msg.info(faction.getName() + " has " + String.format("%.0f", elixir) + " Elixir."));
+
+        return true;
+    }
+
+    // ==========================================
+    // SHOP - /f shop
+    // Buy faction upgrades with elixir
+    // ==========================================
+    private boolean handleShop(Player player, String[] args) {
+
+        Faction faction = requireFaction(player);
+        if (faction == null) return true;
+
+        if (!faction.isLeaderOrOfficer(player.getUniqueId())) {
+            player.sendMessage(msg.error("Only the leader and officers can use the shop!"));
+            return true;
+        }
+
+        if (args.length >= 3) {
+            String item = args[1].toLowerCase();
+            String amount = args[2];
+            switch (item) {
+                case "power":
+                    handleShopPower(player, faction, amount);
+                    return true;
+                case "maxpower":
+                    handleShopMaxPower(player, faction, amount);
+                    return true;
+                default:
+                    player.sendMessage(msg.error("Unknown shop item! Use /f shop to see items."));
+                    return true;
+            }
+        }
+
+        double elixir = faction.getElixir();
+        player.sendMessage(msg.header("Faction Shop"));
+        player.sendMessage(msg.info("Balance: " + String.format("%.0f", elixir) + " Elixir"));
+        player.sendMessage(msg.help("/f shop power [amount]", "Boost faction power (10 elixir per 1 power)"));
+        player.sendMessage(msg.help("/f shop maxpower [amount]", "Increase max power (20 elixir per 5 max power)"));
+
+        return true;
+    }
+
+    private void handleShopPower(Player player, Faction faction, String amountStr) {
+        try {
+            int amount = Integer.parseInt(amountStr);
+            if (amount <= 0) { player.sendMessage(msg.error("Amount must be positive!")); return; }
+            double cost = amount * 10.0;
+            if (plugin.getElixirManager().boostFactionPower(faction.getFactionId(), cost, amount)) {
+                player.sendMessage(msg.success("Boosted faction power by " + amount + " for " + String.format("%.0f", cost) + " elixir!"));
+            } else {
+                player.sendMessage(msg.error("Not enough elixir! Need " + String.format("%.0f", cost)));
+            }
+        } catch (NumberFormatException e) {
+            player.sendMessage(msg.error("Invalid amount!"));
+        }
+    }
+
+    private void handleShopMaxPower(Player player, Faction faction, String amountStr) {
+        try {
+            int amount = Integer.parseInt(amountStr);
+            if (amount <= 0) { player.sendMessage(msg.error("Amount must be positive!")); return; }
+            double cost = amount * 4.0;
+            double powerBoost = amount * 5.0;
+            if (plugin.getElixirManager().increaseMaxPower(faction.getFactionId(), cost, powerBoost)) {
+                player.sendMessage(msg.success("Increased max power by " + String.format("%.0f", powerBoost) + " for " + String.format("%.0f", cost) + " elixir!"));
+            } else {
+                player.sendMessage(msg.error("Not enough elixir! Need " + String.format("%.0f", cost)));
+            }
+        } catch (NumberFormatException e) {
+            player.sendMessage(msg.error("Invalid amount!"));
+        }
+    }
+
+    // ==========================================
+    // ELIXIR TRANSFER - /f transfer <target> <amount>
+    // Send elixir to another faction
+    // ==========================================
+    private boolean handleElixirTransfer(Player player, String[] args) {
+
+        if (!requireArgs(player, args, 3, "/f transfer <faction> <amount>")) return true;
+
+        Faction faction = requireFaction(player);
+        if (faction == null) return true;
+
+        if (!faction.isLeader(player.getUniqueId())) {
+            player.sendMessage(msg.error("Only the leader can transfer elixir!"));
+            return true;
+        }
+
+        Faction target = plugin.getFactionManager().getFactionByName(args[1]);
+        if (target == null) {
+            player.sendMessage(msg.error("No faction found with that name!"));
+            return true;
+        }
+
+        if (target.getFactionId().equals(faction.getFactionId())) {
+            player.sendMessage(msg.error("You can't transfer elixir to yourself!"));
+            return true;
+        }
+
+        try {
+            double amount = Double.parseDouble(args[2]);
+            if (amount <= 0) { player.sendMessage(msg.error("Amount must be positive!")); return true; }
+            if (plugin.getElixirManager().transferElixir(faction.getFactionId(), target.getFactionId(), amount)) {
+                player.sendMessage(msg.success("Transferred " + String.format("%.0f", amount) + " elixir to " + target.getName() + "!"));
+            } else {
+                player.sendMessage(msg.error("Transfer failed! Not enough elixir or transfers are disabled."));
+            }
+        } catch (NumberFormatException e) {
+            player.sendMessage(msg.error("Invalid amount!"));
+        }
+
+        return true;
+    }
+
+    // ==========================================
+    // LOGOUT - /f logout
+    // Safe logout with warmup (cancelled on damage)
+    // ==========================================
+    private boolean handleLogout(Player player) {
+
+        if (!plugin.getCombatManager().isTagged(player.getUniqueId())) {
+            player.sendMessage(msg.error("You are not in combat! Use /f logout to safely log out."));
+            return true;
+        }
+
+        int warmup = plugin.getConfigManager().getCombatLogoutWarmup();
+        if (warmup <= 0) {
+            player.kick(Component.text("You have safely logged out."));
+            return true;
+        }
+
+        player.sendMessage(msg.info("Logging out in " + warmup + " seconds... don't move or take damage."));
+        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+            if (player.isOnline() && plugin.getCombatManager().isTagged(player.getUniqueId())) {
+                player.kick(Component.text("You have safely logged out."));
+            }
+        }, warmup * 20L);
 
         return true;
     }

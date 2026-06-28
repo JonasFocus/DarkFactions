@@ -807,8 +807,6 @@ public class FactionCommand implements CommandExecutor {
         ClaimResult result = plugin.getClaimManager().claimChunk(chunk, faction.getFactionId());
 
         if (result.isSuccess()) {
-            String key = chunk.getWorld().getName() + ":" + chunk.getX() + ":" + chunk.getZ();
-            faction.addClaimedChunk(key);
             player.sendMessage(msg.success("Chunk claimed for " + faction.getName() + "!"));
             player.sendMessage(msg.info("Claims: " + plugin.getClaimManager().getClaimCount(faction.getFactionId())));
         } else {
@@ -845,9 +843,6 @@ public class FactionCommand implements CommandExecutor {
             return true;
         }
 
-        String key = chunk.getWorld().getName() + ":" + chunk.getX() + ":" + chunk.getZ();
-        faction.removeClaimedChunk(key);
-
         plugin.getClaimManager().unclaimChunk(chunk);
         player.sendMessage(msg.success("Chunk unclaimed!"));
 
@@ -869,7 +864,6 @@ public class FactionCommand implements CommandExecutor {
         }
 
         int count = plugin.getClaimManager().unclaimAll(faction.getFactionId());
-        faction.getClaimedChunks().clear();
 
         player.sendMessage(msg.success("Unclaimed " + count + " chunks!"));
 

@@ -9,24 +9,19 @@ package com.darkfactions.managers;
 
 import com.darkfactions.DarkFactions;
 import com.darkfactions.models.Faction;
+import com.darkfactions.storage.DataStore;
+import com.darkfactions.storage.SaveQueue;
 import com.darkfactions.utils.ClaimRules;
 import com.darkfactions.utils.ConfigManager;
-import com.darkfactions.utils.YamlStore;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 
-import java.util.logging.Level;
-
 import org.bukkit.Chunk;
 import org.bukkit.Location;
 import org.bukkit.World;
-import org.bukkit.configuration.ConfigurationSection;
-import org.bukkit.configuration.file.FileConfiguration;
-import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 
-import java.io.File;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -35,6 +30,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class ClaimManager {
 
@@ -42,7 +38,7 @@ public class ClaimManager {
     private final Map<String, UUID> claimMap;
     private final Map<UUID, Integer> factionClaimCount;
     private final Set<UUID> bypassPlayers;
-    private final File dataFile;
+    private final AtomicBoolean dirty;
 
     // Cached config values
     private int maxClaimsPerFaction;
@@ -59,8 +55,7 @@ public class ClaimManager {
         this.claimMap = new ConcurrentHashMap<>();
         this.factionClaimCount = new ConcurrentHashMap<>();
         this.bypassPlayers = new HashSet<>();
-        this.dataFile = new File(plugin.getDataFolder(), "claims.yml");
-
+        this.dirty = new AtomicBoolean(false);
         reloadConfig();
     }
 
@@ -177,7 +172,7 @@ public class ClaimManager {
             }
         }
 
-        plugin.requestSave();
+        dirty.set(true);
         return ClaimResult.SUCCESS;
     }
 
@@ -204,7 +199,7 @@ public class ClaimManager {
                 }
             }
 
-            plugin.requestSave();
+            dirty.set(true);
             return true;
         }
 
@@ -221,7 +216,7 @@ public class ClaimManager {
         factionClaimCount.remove(factionId);
 
         if (!toRemove.isEmpty()) {
-            plugin.requestSave();
+            dirty.set(true);
         }
         return toRemove.size();
     }
@@ -358,55 +353,24 @@ public class ClaimManager {
     }
 
     // ==========================================
-    // Save/Load
+    // Save/Load via DataStore
     // ==========================================
 
-    public void saveClaims() {
-        FileConfiguration config = new YamlConfiguration();
-
-        // Group chunk keys by owning faction in one pass, then write each list once,
-        // rather than re-reading the growing list from config for every single chunk.
-        Map<UUID, List<String>> claimsByFaction = new HashMap<>();
-        for (Map.Entry<String, UUID> entry : claimMap.entrySet()) {
-            claimsByFaction.computeIfAbsent(entry.getValue(), id -> new ArrayList<>())
-                    .add(entry.getKey());
+    public void loadFromStore(DataStore store) {
+        claimMap.putAll(store.loadAllClaims());
+        for (UUID fid : claimMap.values()) {
+            factionClaimCount.merge(fid, 1, Integer::sum);
         }
-
-        for (Map.Entry<UUID, List<String>> entry : claimsByFaction.entrySet()) {
-            config.set("claims." + entry.getKey(), entry.getValue());
-        }
-
-        YamlStore.save(config, dataFile, plugin.getLogger());
+        plugin.getLogger().info("Loaded " + claimMap.size() + " claims!");
     }
 
-    public void loadClaims() {
-        FileConfiguration config = YamlStore.load(dataFile, plugin.getLogger());
-        // contains("claims") can be true for a scalar value, where
-        // getConfigurationSection returns null and would NPE below.
-        ConfigurationSection claimsSection = config.getConfigurationSection("claims");
-        if (claimsSection == null) return;
-
-        int totalClaims = 0;
-
-        for (String factionIdStr : claimsSection.getKeys(false)) {
-            try {
-                UUID factionId = UUID.fromString(factionIdStr);
-                List<String> claimList = config.getStringList("claims." + factionIdStr);
-                int count = 0;
-
-                for (String key : claimList) {
-                    claimMap.put(key, factionId);
-                    count++;
-                }
-
-                factionClaimCount.put(factionId, count);
-                totalClaims += count;
-
-            } catch (Exception e) {
-                plugin.getLogger().log(java.util.logging.Level.SEVERE, "Failed to load claims for: " + factionIdStr, e);
+    public void saveToStoreAsync(SaveQueue queue) {
+        if (!dirty.getAndSet(false)) return;
+        queue.submit(() -> {
+            DataStore store = queue.store();
+            for (Map.Entry<String, UUID> e : claimMap.entrySet()) {
+                store.saveClaim(e.getKey(), e.getValue());
             }
-        }
-
-        plugin.getLogger().info("Loaded " + totalClaims + " claims from disk!");
+        });
     }
 }

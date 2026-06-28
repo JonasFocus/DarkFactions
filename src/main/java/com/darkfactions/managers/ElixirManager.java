@@ -8,22 +8,20 @@ package com.darkfactions.managers;
 
 import com.darkfactions.DarkFactions;
 import com.darkfactions.models.Faction;
+import com.darkfactions.storage.DataStore;
+import com.darkfactions.storage.SaveQueue;
 import com.darkfactions.utils.ConfigManager;
-import com.darkfactions.utils.YamlStore;
 
-import org.bukkit.configuration.file.FileConfiguration;
-import org.bukkit.configuration.file.YamlConfiguration;
-
-import java.io.File;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class ElixirManager {
 
     private final DarkFactions plugin;
-    private final File dataFile;
     private final Map<UUID, Double> pendingElixir;
+    private final AtomicBoolean pendingDirty;
 
     // Cached config values
     private double perEnemyKill;
@@ -38,8 +36,7 @@ public class ElixirManager {
     public ElixirManager(DarkFactions plugin) {
         this.plugin = plugin;
         this.pendingElixir = new ConcurrentHashMap<>();
-        this.dataFile = new File(plugin.getDataFolder(), "elixir.yml");
-
+        this.pendingDirty = new AtomicBoolean(false);
         reloadConfig();
     }
 
@@ -71,14 +68,14 @@ public class ElixirManager {
         Faction faction = plugin.getFactionManager().getFaction(factionId);
         if (faction != null) {
             faction.addElixir(amount);
-            plugin.requestSave();
+            pendingDirty.set(true);
         }
     }
 
     public boolean removeFactionElixir(UUID factionId, double amount) {
         Faction faction = plugin.getFactionManager().getFaction(factionId);
         if (faction != null && faction.removeElixir(amount)) {
-            plugin.requestSave();
+            pendingDirty.set(true);
             return true;
         }
         return false;
@@ -117,12 +114,12 @@ public class ElixirManager {
             Faction faction = plugin.getFactionManager().getPlayerFaction(playerUuid);
             if (faction != null) {
                 faction.addElixir(dailyBonus);
-                plugin.requestSave(); // persist the faction's new balance
+                pendingDirty.set(true); // persist the faction's new balance
             }
         } else {
             // Add to pending - claimed via /f elixir
             pendingElixir.merge(playerUuid, dailyBonus, Double::sum);
-            plugin.requestSave();
+            pendingDirty.set(true);
         }
     }
 
@@ -137,7 +134,7 @@ public class ElixirManager {
 
         double amount = pendingElixir.remove(playerUuid);
         faction.addElixir(amount);
-        plugin.requestSave();
+        pendingDirty.set(true);
         return true;
     }
 
@@ -184,33 +181,21 @@ public class ElixirManager {
     }
 
     // ==========================================
-    // Save/Load
+    // Save/Load via DataStore
     // ==========================================
 
-    public void saveElixirData() {
-        FileConfiguration config = new YamlConfiguration();
-
-        for (Map.Entry<UUID, Double> entry : pendingElixir.entrySet()) {
-            config.set("pending." + entry.getKey().toString(), entry.getValue());
-        }
-
-        YamlStore.save(config, dataFile, plugin.getLogger());
+    public void loadFromStore(DataStore store) {
+        pendingElixir.putAll(store.loadPendingElixir());
+        plugin.getLogger().info("Loaded elixir data - " + pendingElixir.size() + " players have pending elixir!");
     }
 
-    public void loadElixirData() {
-        FileConfiguration config = YamlStore.load(dataFile, plugin.getLogger());
-        if (!config.contains("pending")) return;
-
-        for (String key : config.getConfigurationSection("pending").getKeys(false)) {
-            try {
-                UUID playerUuid = UUID.fromString(key);
-                double amount = config.getDouble("pending." + key);
-                pendingElixir.put(playerUuid, amount);
-            } catch (Exception e) {
-                plugin.getLogger().log(java.util.logging.Level.SEVERE, "Failed to load pending elixir for: " + key, e);
+    public void saveToStoreAsync(SaveQueue queue) {
+        if (!pendingDirty.getAndSet(false)) return;
+        queue.submit(() -> {
+            DataStore store = queue.store();
+            for (Map.Entry<UUID, Double> e : pendingElixir.entrySet()) {
+                store.savePendingElixir(e.getKey(), e.getValue());
             }
-        }
-
-        plugin.getLogger().info("Loaded elixir data - " + pendingElixir.size() + " players have pending elixir!");
+        });
     }
 }

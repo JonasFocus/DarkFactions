@@ -11,23 +11,21 @@ package com.darkfactions.managers;
 import com.darkfactions.DarkFactions;
 import com.darkfactions.models.Faction;
 import com.darkfactions.models.FactionPlayer;
+import com.darkfactions.storage.DataStore;
+import com.darkfactions.storage.SaveQueue;
 import com.darkfactions.utils.ConfigManager;
 import com.darkfactions.utils.PowerRules;
-import com.darkfactions.utils.YamlStore;
 
-import org.bukkit.configuration.file.FileConfiguration;
-import org.bukkit.configuration.file.YamlConfiguration;
-
-import java.io.File;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class PowerManager {
 
     private final DarkFactions plugin;
     private final Map<UUID, FactionPlayer> playerDataMap;
-    private final File dataFile;
+    private final AtomicBoolean dirty;
 
     // Cached config values (reloaded on /f admin reload)
     private double defaultPlayerPower;
@@ -51,13 +49,8 @@ public class PowerManager {
 
     public PowerManager(DarkFactions plugin) {
         this.plugin = plugin;
-        // Concurrent: the regen task iterates this map asynchronously while the
-        // main thread adds and updates entries from join/death/kill handlers.
         this.playerDataMap = new ConcurrentHashMap<>();
-        this.dataFile = new File(plugin.getDataFolder(), "playerdata.yml");
-
-        // reloadConfig() loads the interval and starts the regen task, so no
-        // separate startRegenTask() call is needed here.
+        this.dirty = new AtomicBoolean(false);
         reloadConfig();
     }
 
@@ -208,58 +201,23 @@ public class PowerManager {
     }
 
     // ==========================================
-    // Save/Load
+    // Save/Load via DataStore
     // ==========================================
 
-    public void savePowerData() {
-        FileConfiguration config = new YamlConfiguration();
-
-        for (Map.Entry<UUID, FactionPlayer> entry : playerDataMap.entrySet()) {
-            String path = "players." + entry.getKey().toString();
-            FactionPlayer data = entry.getValue();
-
-            config.set(path + ".power", data.getPower());
-            config.set(path + ".maxPower", data.getMaxPower());
-            config.set(path + ".kills", data.getKills());
-            config.set(path + ".deaths", data.getDeaths());
-            config.set(path + ".lastLogin", data.getLastLoginTime());
-            config.set(path + ".lastLogout", data.getLastLogoutTime());
-
-            if (data.getFactionId() != null) {
-                config.set(path + ".faction", data.getFactionId().toString());
-            }
+    public void loadFromStore(DataStore store) {
+        for (FactionPlayer data : store.loadAllPlayerData()) {
+            playerDataMap.put(data.getPlayerUuid(), data);
         }
-
-        YamlStore.save(config, dataFile, plugin.getLogger());
+        plugin.getLogger().info("Loaded power data for " + playerDataMap.size() + " players!");
     }
 
-    public void loadPowerData() {
-        FileConfiguration config = YamlStore.load(dataFile, plugin.getLogger());
-        if (!config.contains("players")) return;
-
-        for (String key : config.getConfigurationSection("players").getKeys(false)) {
-            try {
-                FactionPlayer data = new FactionPlayer();
-                UUID playerUuid = UUID.fromString(key);
-                data.setPlayerUuid(playerUuid);
-                data.setPower(config.getDouble("players." + key + ".power", defaultPlayerPower));
-                data.setMaxPower(config.getDouble("players." + key + ".maxPower", maxPlayerPower));
-                data.setKills(config.getInt("players." + key + ".kills", 0));
-                data.setDeaths(config.getInt("players." + key + ".deaths", 0));
-                data.setLastLoginTime(config.getLong("players." + key + ".lastLogin", System.currentTimeMillis()));
-                data.setLastLogoutTime(config.getLong("players." + key + ".lastLogout", 0));
-
-                if (config.contains("players." + key + ".faction")) {
-                    data.setFactionId(UUID.fromString(config.getString("players." + key + ".faction")));
-                }
-
-                playerDataMap.put(playerUuid, data);
-
-            } catch (Exception e) {
-                plugin.getLogger().log(java.util.logging.Level.SEVERE, "Failed to load player data for: " + key, e);
+    public void saveToStoreAsync(SaveQueue queue) {
+        if (!dirty.getAndSet(false)) return;
+        queue.submit(() -> {
+            DataStore store = queue.store();
+            for (FactionPlayer data : playerDataMap.values()) {
+                store.savePlayerData(data);
             }
-        }
-
-        plugin.getLogger().info("Loaded power data for " + playerDataMap.size() + " players!");
+        });
     }
 }

@@ -8,6 +8,7 @@ package com.darkfactions.utils;
 // ==========================================
 
 import com.darkfactions.DarkFactions;
+import com.darkfactions.storage.DatabaseManager;
 
 import org.bukkit.configuration.file.FileConfiguration;
 
@@ -33,8 +34,24 @@ public class ConfigManager {
     // Reads a string and translates '&' color codes to the section sign.
     // def is non-null at every call site, so getString never returns null here.
     private String c(String path, String def) {
-        return config.getString(path, def).replace('&', '\u00A7');
+        String val = config.getString(path, def);
+        return val != null ? val.replace('&', '\u00A7') : def;
     }
+
+    // ==========================================
+    // DATABASE
+    // ==========================================
+    public DatabaseManager.Type getDatabaseType() {
+        String t = config.getString("database.type", "SQLITE");
+        return "MYSQL".equalsIgnoreCase(t) ? DatabaseManager.Type.MYSQL : DatabaseManager.Type.SQLITE;
+    }
+
+    public String getDatabaseHost() { return config.getString("database.mysql.host", "localhost"); }
+    public int getDatabasePort() { return config.getInt("database.mysql.port", 3306); }
+    public String getDatabaseName() { return config.getString("database.mysql.database", "darkfactions"); }
+    public String getDatabaseUsername() { return config.getString("database.mysql.username", "root"); }
+    public String getDatabasePassword() { return config.getString("database.mysql.password", ""); }
+    public int getDatabaseSaveInterval() { return config.getInt("database.save-interval-seconds", 120); }
 
     // ==========================================
     // GENERAL

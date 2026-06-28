@@ -45,29 +45,6 @@ public class FactionPlayer {
     }
 
     // ==========================================
-    // Power Methods
-    //
-    // These apply simple, hardcoded power changes clamped to [0, maxPower].
-    // The live gameplay path runs through PowerManager/PowerRules instead, which
-    // are config-driven; adjust balance there, not here.
-    // ==========================================
-
-    // Increase power over time (called every X minutes)
-    public void regenPower(double amount) {
-        this.power = Math.min(this.power + amount, this.maxPower);
-    }
-
-    // Lose power on death
-    public void losePowerOnDeath() {
-        this.power = Math.max(this.power - 1.0, 0.0); // Lose 1 power per death
-    }
-
-    // Gain power on kill
-    public void gainPowerOnKill() {
-        this.power = Math.min(this.power + 0.5, this.maxPower); // Gain 0.5 per kill
-    }
-
-    // ==========================================
     // Getters and Setters
     // ==========================================
 

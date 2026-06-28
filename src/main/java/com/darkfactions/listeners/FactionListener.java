@@ -373,6 +373,11 @@ public class FactionListener implements Listener {
         // Update the name cache
         plugin.getPlayerNameCache().updateName(player);
 
+        // Decay power for the time spent offline (based on the stored logout
+        // time) before stamping the new login time, so power.offline-decay-*
+        // actually takes effect. No-op when offline decay is disabled.
+        plugin.getPowerManager().handleOfflineDecay(playerUuid);
+
         // Update login time for power regen
         plugin.getPowerManager().getPlayerData(playerUuid).setLastLoginTime(System.currentTimeMillis());
 
@@ -416,26 +421,31 @@ public class FactionListener implements Listener {
         Player victim = event.getEntity();
         UUID victimUuid = victim.getUniqueId();
 
+        Player killer = victim.getKiller();
+
+        // Environmental / mob death: apply the PvE power loss (a no-op when
+        // power.loss-on-pve-death is 0) instead of the heavier PvP penalty.
+        if (killer == null) {
+            plugin.getPowerManager().onPlayerPveDeath(victimUuid);
+            return;
+        }
+
+        // PvP death: victim takes the PvP power loss, killer gains power.
         plugin.getPowerManager().onPlayerDeath(victimUuid);
 
-        if (victim.getKiller() != null) {
-            Player killer = victim.getKiller();
-            UUID killerUuid = killer.getUniqueId();
+        UUID killerUuid = killer.getUniqueId();
+        plugin.getPowerManager().onPlayerKill(killerUuid);
 
-            plugin.getPowerManager().onPlayerKill(killerUuid);
+        // Check faction vs faction combat
+        Faction victimFaction = plugin.getFactionManager().getPlayerFaction(victimUuid);
+        Faction killerFaction = plugin.getFactionManager().getPlayerFaction(killerUuid);
 
-            // Check faction vs faction combat
-            Faction victimFaction = plugin.getFactionManager().getPlayerFaction(victimUuid);
-            Faction killerFaction = plugin.getFactionManager().getPlayerFaction(killerUuid);
-
-            if (victimFaction != null && killerFaction != null) {
-                if (victimFaction.isEnemy(killerFaction.getFactionId())) {
-                    plugin.getElixirManager().onEnemyKill(killerFaction.getFactionId());
-                    killer.sendMessage(plugin.getMessageUtils().success(
-                            "Enemy kill! Elixir earned for " + killerFaction.getName()
-                    ));
-                }
-            }
+        if (victimFaction != null && killerFaction != null
+                && victimFaction.isEnemy(killerFaction.getFactionId())) {
+            plugin.getElixirManager().onEnemyKill(killerFaction.getFactionId());
+            killer.sendMessage(plugin.getMessageUtils().success(
+                    "Enemy kill! Elixir earned for " + killerFaction.getName()
+            ));
         }
     }
 

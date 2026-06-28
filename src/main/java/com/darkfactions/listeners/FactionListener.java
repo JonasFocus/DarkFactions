@@ -471,25 +471,30 @@ public class FactionListener implements Listener {
         Player victim = event.getEntity();
         UUID victimUuid = victim.getUniqueId();
 
+        // A non-null killer means another player landed the killing blow (PvP);
+        // otherwise this is an environmental or mob death (PvE). Each path has
+        // its own configurable power penalty.
+        Player killer = victim.getKiller();
+        if (killer == null) {
+            plugin.getPowerManager().onPlayerPveDeath(victimUuid);
+            return;
+        }
+
         plugin.getPowerManager().onPlayerDeath(victimUuid);
 
-        if (victim.getKiller() != null) {
-            Player killer = victim.getKiller();
-            UUID killerUuid = killer.getUniqueId();
+        UUID killerUuid = killer.getUniqueId();
+        plugin.getPowerManager().onPlayerKill(killerUuid);
 
-            plugin.getPowerManager().onPlayerKill(killerUuid);
+        // Check faction vs faction combat
+        Faction victimFaction = plugin.getFactionManager().getPlayerFaction(victimUuid);
+        Faction killerFaction = plugin.getFactionManager().getPlayerFaction(killerUuid);
 
-            // Check faction vs faction combat
-            Faction victimFaction = plugin.getFactionManager().getPlayerFaction(victimUuid);
-            Faction killerFaction = plugin.getFactionManager().getPlayerFaction(killerUuid);
-
-            if (victimFaction != null && killerFaction != null) {
-                if (victimFaction.isEnemy(killerFaction.getFactionId())) {
-                    plugin.getElixirManager().onEnemyKill(killerFaction.getFactionId());
-                    killer.sendMessage(plugin.getMessageUtils().success(
-                            "Enemy kill! Elixir earned for " + killerFaction.getName()
-                    ));
-                }
+        if (victimFaction != null && killerFaction != null) {
+            if (victimFaction.isEnemy(killerFaction.getFactionId())) {
+                plugin.getElixirManager().onEnemyKill(killerFaction.getFactionId());
+                killer.sendMessage(plugin.getMessageUtils().success(
+                        "Enemy kill! Elixir earned for " + killerFaction.getName()
+                ));
             }
         }
     }

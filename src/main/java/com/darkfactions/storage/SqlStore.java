@@ -21,6 +21,15 @@ public class SqlStore implements DataStore {
 
     private static final int SCHEMA_VERSION = 1;
 
+    // Role values stored in faction_members.role
+    private static final String ROLE_LEADER = "LEADER";
+    private static final String ROLE_OFFICER = "OFFICER";
+    private static final String ROLE_MEMBER = "MEMBER";
+
+    // Relation values stored in faction_relations.relation
+    private static final String RELATION_ALLY = "ALLY";
+    private static final String RELATION_ENEMY = "ENEMY";
+
     private final DarkFactions plugin;
     private final DatabaseManager db;
 
@@ -139,9 +148,9 @@ public class SqlStore implements DataStore {
                 f.setPvpEnabled(rs.getBoolean("pvp_enabled"));
                 f.setTntEnabled(rs.getBoolean("tnt_enabled"));
                 f.setCreationTime(rs.getLong("created"));
-                f.setMotd(rs.getString("motd") != null ? rs.getString("motd") : "");
-                f.setDescription(rs.getString("description") != null ? rs.getString("description") : "");
-                f.setTag(rs.getString("tag") != null ? rs.getString("tag") : "");
+                f.setMotd(getStringOrEmpty(rs, "motd"));
+                f.setDescription(getStringOrEmpty(rs, "description"));
+                f.setTag(getStringOrEmpty(rs, "tag"));
 
                 String hw = rs.getString("home_world");
                 if (hw != null && !hw.isEmpty()) {
@@ -171,7 +180,7 @@ public class SqlStore implements DataStore {
                     while (rs.next()) {
                         UUID puid = UUID.fromString(rs.getString("player_uuid"));
                         String role = rs.getString("role");
-                        if ("OFFICER".equals(role)) {
+                        if (ROLE_OFFICER.equals(role)) {
                             officers.add(puid);
                         } else {
                             members.add(puid);
@@ -197,9 +206,9 @@ public class SqlStore implements DataStore {
                     while (rs.next()) {
                         UUID tid = UUID.fromString(rs.getString("target_id"));
                         String rel = rs.getString("relation");
-                        if ("ALLY".equals(rel)) {
+                        if (RELATION_ALLY.equals(rel)) {
                             allies.add(tid);
-                        } else if ("ENEMY".equals(rel)) {
+                        } else if (RELATION_ENEMY.equals(rel)) {
                             enemies.add(tid);
                         }
                     }
@@ -261,9 +270,9 @@ public class SqlStore implements DataStore {
         // Members
         execute("DELETE FROM faction_members WHERE faction_id = ?", faction.getFactionId().toString());
         for (UUID muid : faction.getMembers()) {
-            String role = faction.isOfficer(muid) ? "OFFICER" : "MEMBER";
+            String role = faction.isOfficer(muid) ? ROLE_OFFICER : ROLE_MEMBER;
             if (faction.isLeader(muid)) {
-                role = "LEADER";
+                role = ROLE_LEADER;
             }
             execute("INSERT INTO faction_members (faction_id, player_uuid, role) VALUES (?, ?, ?)",
                     faction.getFactionId().toString(), muid.toString(), role);
@@ -272,12 +281,12 @@ public class SqlStore implements DataStore {
         // Relations
         execute("DELETE FROM faction_relations WHERE faction_id = ?", faction.getFactionId().toString());
         for (UUID aid : faction.getAllies()) {
-            execute("INSERT INTO faction_relations (faction_id, target_id, relation) VALUES (?, ?, 'ALLY')",
-                    faction.getFactionId().toString(), aid.toString());
+            execute("INSERT INTO faction_relations (faction_id, target_id, relation) VALUES (?, ?, ?)",
+                    faction.getFactionId().toString(), aid.toString(), RELATION_ALLY);
         }
         for (UUID eid : faction.getEnemies()) {
-            execute("INSERT INTO faction_relations (faction_id, target_id, relation) VALUES (?, ?, 'ENEMY')",
-                    faction.getFactionId().toString(), eid.toString());
+            execute("INSERT INTO faction_relations (faction_id, target_id, relation) VALUES (?, ?, ?)",
+                    faction.getFactionId().toString(), eid.toString(), RELATION_ENEMY);
         }
     }
 
@@ -431,6 +440,13 @@ public class SqlStore implements DataStore {
     }
 
     // ========== Helpers ==========
+
+    // Read a string column, mapping SQL NULL to an empty string so callers never
+    // store null. Reads the column once instead of the getString-twice ternary.
+    private static String getStringOrEmpty(ResultSet rs, String column) throws SQLException {
+        String value = rs.getString(column);
+        return value != null ? value : "";
+    }
 
     private void execute(String sql, Object... params) {
         try (Connection c = db.getConnection();

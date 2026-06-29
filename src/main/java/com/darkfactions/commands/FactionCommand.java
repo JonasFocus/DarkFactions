@@ -296,10 +296,7 @@ public class FactionCommand implements CommandExecutor {
         Faction faction = requireFaction(player);
         if (faction == null) return true;
 
-        if (!faction.isLeader(player.getUniqueId())) {
-            player.sendMessage(msg.error("Only the faction leader can disband the faction!"));
-            return true;
-        }
+        if (!requireLeader(player, faction, "Only the faction leader can disband the faction!")) return true;
 
         String factionName = faction.getName();
 
@@ -330,10 +327,7 @@ public class FactionCommand implements CommandExecutor {
         Faction faction = requireFaction(player);
         if (faction == null) return true;
 
-        if (!faction.isLeaderOrOfficer(player.getUniqueId())) {
-            player.sendMessage(msg.error("Only the leader and officers can invite players!"));
-            return true;
-        }
+        if (!requireOfficer(player, faction, "Only the leader and officers can invite players!")) return true;
 
         Player target = Bukkit.getPlayer(args[1]);
         if (target == null || !target.isOnline()) {
@@ -375,10 +369,7 @@ public class FactionCommand implements CommandExecutor {
         Faction faction = requireFaction(player);
         if (faction == null) return true;
 
-        if (!faction.isLeaderOrOfficer(player.getUniqueId())) {
-            player.sendMessage(msg.error("Only the leader and officers can manage invites!"));
-            return true;
-        }
+        if (!requireOfficer(player, faction, "Only the leader and officers can manage invites!")) return true;
 
         Player target = Bukkit.getPlayer(args[1]);
         if (target == null || !target.isOnline()) {
@@ -520,10 +511,7 @@ public class FactionCommand implements CommandExecutor {
         Faction faction = requireFaction(player);
         if (faction == null) return true;
 
-        if (!faction.isLeaderOrOfficer(player.getUniqueId())) {
-            player.sendMessage(msg.error("Only the leader and officers can kick players!"));
-            return true;
-        }
+        if (!requireOfficer(player, faction, "Only the leader and officers can kick players!")) return true;
 
         Player target = Bukkit.getPlayer(args[1]);
         UUID targetUuid;
@@ -595,10 +583,7 @@ public class FactionCommand implements CommandExecutor {
         Faction faction = requireFaction(player);
         if (faction == null) return true;
 
-        if (!faction.isLeader(player.getUniqueId())) {
-            player.sendMessage(msg.error("Only the faction leader can promote members!"));
-            return true;
-        }
+        if (!requireLeader(player, faction, "Only the faction leader can promote members!")) return true;
 
         UUID targetUuid = findPlayerUuidByName(args[1], faction);
         if (targetUuid == null) {
@@ -633,10 +618,7 @@ public class FactionCommand implements CommandExecutor {
         Faction faction = requireFaction(player);
         if (faction == null) return true;
 
-        if (!faction.isLeader(player.getUniqueId())) {
-            player.sendMessage(msg.error("Only the faction leader can demote officers!"));
-            return true;
-        }
+        if (!requireLeader(player, faction, "Only the faction leader can demote officers!")) return true;
 
         UUID targetUuid = findPlayerUuidByName(args[1], faction);
         if (targetUuid == null) {
@@ -671,10 +653,7 @@ public class FactionCommand implements CommandExecutor {
         Faction faction = requireFaction(player);
         if (faction == null) return true;
 
-        if (!faction.isLeader(player.getUniqueId())) {
-            player.sendMessage(msg.error("Only the faction leader can transfer leadership!"));
-            return true;
-        }
+        if (!requireLeader(player, faction, "Only the faction leader can transfer leadership!")) return true;
 
         UUID targetUuid = findPlayerUuidByName(args[1], faction);
         if (targetUuid == null) {
@@ -713,10 +692,7 @@ public class FactionCommand implements CommandExecutor {
         Faction faction = requireFaction(player);
         if (faction == null) return true;
 
-        if (!faction.isLeader(player.getUniqueId())) {
-            player.sendMessage(msg.error("Only the faction leader can rename the faction!"));
-            return true;
-        }
+        if (!requireLeader(player, faction, "Only the faction leader can rename the faction!")) return true;
 
         String newName = args[1];
 
@@ -756,10 +732,7 @@ public class FactionCommand implements CommandExecutor {
         Faction faction = requireFaction(player);
         if (faction == null) return true;
 
-        if (!faction.isLeaderOrOfficer(player.getUniqueId())) {
-            player.sendMessage(msg.error("Only the leader and officers can set the faction home!"));
-            return true;
-        }
+        if (!requireOfficer(player, faction, "Only the leader and officers can set the faction home!")) return true;
 
         plugin.getFactionManager().setFactionHome(faction.getFactionId(), player.getLocation());
         player.sendMessage(msg.success("Faction home has been set!"));
@@ -849,10 +822,7 @@ public class FactionCommand implements CommandExecutor {
         Faction faction = requireFaction(player);
         if (faction == null) return true;
 
-        if (!faction.isLeaderOrOfficer(player.getUniqueId())) {
-            player.sendMessage(msg.error("Only the leader and officers can claim land!"));
-            return true;
-        }
+        if (!requireOfficer(player, faction, "Only the leader and officers can claim land!")) return true;
 
         Chunk chunk = player.getLocation().getChunk();
         ClaimResult result = plugin.getClaimManager().claimChunk(chunk, faction.getFactionId());
@@ -876,10 +846,7 @@ public class FactionCommand implements CommandExecutor {
         Faction faction = requireFaction(player);
         if (faction == null) return true;
 
-        if (!faction.isLeaderOrOfficer(player.getUniqueId())) {
-            player.sendMessage(msg.error("Only the leader and officers can unclaim land!"));
-            return true;
-        }
+        if (!requireOfficer(player, faction, "Only the leader and officers can unclaim land!")) return true;
 
         Chunk chunk = player.getLocation().getChunk();
         UUID ownerId = plugin.getClaimManager().getClaimOwner(chunk);
@@ -909,10 +876,7 @@ public class FactionCommand implements CommandExecutor {
         Faction faction = requireFaction(player);
         if (faction == null) return true;
 
-        if (!faction.isLeader(player.getUniqueId())) {
-            player.sendMessage(msg.error("Only the faction leader can unclaim all land!"));
-            return true;
-        }
+        if (!requireLeader(player, faction, "Only the faction leader can unclaim all land!")) return true;
 
         int count = plugin.getClaimManager().unclaimAll(faction.getFactionId());
 
@@ -972,10 +936,7 @@ public class FactionCommand implements CommandExecutor {
         Faction faction = requireFaction(player);
         if (faction == null) return true;
 
-        if (!faction.isLeaderOrOfficer(player.getUniqueId())) {
-            player.sendMessage(msg.error("Only the leader and officers can use auto-claim!"));
-            return true;
-        }
+        if (!requireOfficer(player, faction, "Only the leader and officers can use auto-claim!")) return true;
 
         boolean current = autoClaimMap.getOrDefault(player.getUniqueId(), false);
         boolean newState = !current;
@@ -1284,10 +1245,7 @@ public class FactionCommand implements CommandExecutor {
         Faction faction = requireFaction(player);
         if (faction == null) return true;
 
-        if (!faction.isLeaderOrOfficer(player.getUniqueId())) {
-            player.sendMessage(msg.error("Only the leader and officers can use the shop!"));
-            return true;
-        }
+        if (!requireOfficer(player, faction, "Only the leader and officers can use the shop!")) return true;
 
         if (args.length >= 3) {
             String item = args[1].toLowerCase();
@@ -1356,10 +1314,7 @@ public class FactionCommand implements CommandExecutor {
         Faction faction = requireFaction(player);
         if (faction == null) return true;
 
-        if (!faction.isLeader(player.getUniqueId())) {
-            player.sendMessage(msg.error("Only the leader can transfer elixir!"));
-            return true;
-        }
+        if (!requireLeader(player, faction, "Only the leader can transfer elixir!")) return true;
 
         Faction target = plugin.getFactionManager().getFactionByName(args[1]);
         if (target == null) {
@@ -1423,10 +1378,7 @@ public class FactionCommand implements CommandExecutor {
         Faction faction = requireFaction(player);
         if (faction == null) return true;
 
-        if (!faction.isLeaderOrOfficer(player.getUniqueId())) {
-            player.sendMessage(msg.error("Only the leader and officers can set the faction MOTD!"));
-            return true;
-        }
+        if (!requireOfficer(player, faction, "Only the leader and officers can set the faction MOTD!")) return true;
 
         if (args.length < 2) {
             // Show current MOTD
@@ -1467,10 +1419,7 @@ public class FactionCommand implements CommandExecutor {
         Faction faction = requireFaction(player);
         if (faction == null) return true;
 
-        if (!faction.isLeaderOrOfficer(player.getUniqueId())) {
-            player.sendMessage(msg.error("Only the leader and officers can set the faction description!"));
-            return true;
-        }
+        if (!requireOfficer(player, faction, "Only the leader and officers can set the faction description!")) return true;
 
         if (args.length < 2) {
             // Show current description
@@ -1509,10 +1458,7 @@ public class FactionCommand implements CommandExecutor {
         Faction faction = requireFaction(player);
         if (faction == null) return true;
 
-        if (!faction.isLeader(player.getUniqueId())) {
-            player.sendMessage(msg.error("Only the faction leader can set the faction tag!"));
-            return true;
-        }
+        if (!requireLeader(player, faction, "Only the faction leader can set the faction tag!")) return true;
 
         if (args.length < 2) {
             // Show current tag
@@ -1547,10 +1493,7 @@ public class FactionCommand implements CommandExecutor {
         Faction faction = requireFaction(player);
         if (faction == null) return true;
 
-        if (!faction.isLeader(player.getUniqueId())) {
-            player.sendMessage(msg.error("Only the faction leader can toggle open join!"));
-            return true;
-        }
+        if (!requireLeader(player, faction, "Only the faction leader can toggle open join!")) return true;
 
         boolean newState = !faction.isOpen();
         faction.setOpen(newState);
@@ -1573,10 +1516,7 @@ public class FactionCommand implements CommandExecutor {
         Faction faction = requireFaction(player);
         if (faction == null) return true;
 
-        if (!faction.isLeader(player.getUniqueId())) {
-            player.sendMessage(msg.error("Only the faction leader can toggle PvP!"));
-            return true;
-        }
+        if (!requireLeader(player, faction, "Only the faction leader can toggle PvP!")) return true;
 
         boolean newState = !faction.isPvpEnabled();
         faction.setPvpEnabled(newState);
@@ -1599,10 +1539,7 @@ public class FactionCommand implements CommandExecutor {
         Faction faction = requireFaction(player);
         if (faction == null) return true;
 
-        if (!faction.isLeader(player.getUniqueId())) {
-            player.sendMessage(msg.error("Only the faction leader can toggle TNT!"));
-            return true;
-        }
+        if (!requireLeader(player, faction, "Only the faction leader can toggle TNT!")) return true;
 
         boolean newState = !faction.isTntEnabled();
         faction.setTntEnabled(newState);
@@ -1672,10 +1609,7 @@ public class FactionCommand implements CommandExecutor {
         Faction faction = requireFaction(player);
         if (faction == null) return true;
 
-        if (!faction.isLeaderOrOfficer(player.getUniqueId())) {
-            player.sendMessage(msg.error("Only leaders and officers can manage alliances!"));
-            return true;
-        }
+        if (!requireOfficer(player, faction, "Only leaders and officers can manage alliances!")) return true;
 
         Faction targetFaction = plugin.getFactionManager().getFactionByName(args[1]);
         if (targetFaction == null) {
@@ -1716,10 +1650,7 @@ public class FactionCommand implements CommandExecutor {
         Faction faction = requireFaction(player);
         if (faction == null) return true;
 
-        if (!faction.isLeaderOrOfficer(player.getUniqueId())) {
-            player.sendMessage(msg.error("Only leaders and officers can manage enemies!"));
-            return true;
-        }
+        if (!requireOfficer(player, faction, "Only leaders and officers can manage enemies!")) return true;
 
         Faction targetFaction = plugin.getFactionManager().getFactionByName(args[1]);
         if (targetFaction == null) {
@@ -1763,10 +1694,7 @@ public class FactionCommand implements CommandExecutor {
         Faction faction = requireFaction(player);
         if (faction == null) return true;
 
-        if (!faction.isLeaderOrOfficer(player.getUniqueId())) {
-            player.sendMessage(msg.error("Only leaders and officers can manage relations!"));
-            return true;
-        }
+        if (!requireOfficer(player, faction, "Only leaders and officers can manage relations!")) return true;
 
         Faction targetFaction = plugin.getFactionManager().getFactionByName(args[1]);
         if (targetFaction == null) {
@@ -2130,6 +2058,26 @@ public class FactionCommand implements CommandExecutor {
     private boolean requireArgs(Player player, String[] args, int min, String usage) {
         if (args.length < min) {
             player.sendMessage(msg.error("Usage: " + usage));
+            return false;
+        }
+        return true;
+    }
+
+    // Require the player to be the faction leader, else send `denial`.
+    // Callers do: if (!requireLeader(player, faction, "...")) return true;
+    private boolean requireLeader(Player player, Faction faction, String denial) {
+        if (!faction.isLeader(player.getUniqueId())) {
+            player.sendMessage(msg.error(denial));
+            return false;
+        }
+        return true;
+    }
+
+    // Require the player to be the leader or an officer, else send `denial`.
+    // Callers do: if (!requireOfficer(player, faction, "...")) return true;
+    private boolean requireOfficer(Player player, Faction faction, String denial) {
+        if (!faction.isLeaderOrOfficer(player.getUniqueId())) {
+            player.sendMessage(msg.error(denial));
             return false;
         }
         return true;

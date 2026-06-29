@@ -39,7 +39,9 @@ public class FactionTabCompleter implements TabCompleter {
         // Relations
         "ally", "enemy", "neutral",
         // Other
-        "fly",
+        "fly", "logout",
+        // Shop
+        "shop", "transfer",
         // Admin
         "admin", "reload"
     );

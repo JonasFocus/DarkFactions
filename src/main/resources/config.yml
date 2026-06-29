@@ -6,6 +6,44 @@
 # ==========================================
 
 # ==========================================
+# QUICK START
+# ==========================================
+# New to DarkFactions? Tweak these values first.
+# Everything below has a sensible default.
+# ==========================================
+quick-start:
+  power:
+    max-player-power: 10.0
+    loss-on-death: 1.0
+    offline-decay-enabled: false
+  claiming:
+    max-per-faction: 25
+    require-connection: true
+  faction:
+    max-members: 30
+
+# ==========================================
+# DATABASE
+# ==========================================
+database:
+  # Storage backend: SQLITE or MYSQL
+  # SQLITE is embedded (no server needed), good for small servers
+  # MYSQL requires a database server (better for 100+ players)
+  type: SQLITE
+
+  # MySQL connection details (only used when type is MYSQL)
+  mysql:
+    host: localhost
+    port: 3306
+    database: darkfactions
+    username: root
+    password: ""
+
+  # How often data is written to the database (seconds)
+  # Data is always in memory, this is just persistence frequency
+  save-interval-seconds: 120
+
+# ==========================================
 # GENERAL SETTINGS
 # ==========================================
 general:
@@ -402,6 +440,26 @@ leaderboard:
     - elixir
     - members
     - land
+
+# ==========================================
+# COMBAT SETTINGS
+# Controls combat tagging and logout behavior
+# ==========================================
+combat:
+  # How long a player stays combat-tagged after PvP damage (seconds)
+  tag-duration-seconds: 30
+
+  # Kill players who log out while combat tagged
+  kill-on-quit: true
+
+  # Disable /f fly when combat tagged
+  prevent-fly: true
+
+  # Disable /f home when combat tagged
+  prevent-home: true
+
+  # Warmup duration for /f logout (seconds, 0 = instant)
+  logout-warmup-seconds: 10
 
 # ==========================================
 # ADMIN & ECONOMY SETTINGS

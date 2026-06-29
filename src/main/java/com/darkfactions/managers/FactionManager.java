@@ -8,16 +8,13 @@ package com.darkfactions.managers;
 
 import com.darkfactions.DarkFactions;
 import com.darkfactions.models.Faction;
+import com.darkfactions.storage.DataStore;
+import com.darkfactions.storage.SaveQueue;
 import com.darkfactions.utils.ConfigManager;
 import com.darkfactions.utils.FactionRankings;
-import com.darkfactions.utils.YamlStore;
 
 import org.bukkit.Location;
-import org.bukkit.configuration.ConfigurationSection;
-import org.bukkit.configuration.file.FileConfiguration;
-import org.bukkit.configuration.file.YamlConfiguration;
 
-import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -25,20 +22,16 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class FactionManager {
 
     private final DarkFactions plugin;
-    // Concurrent: the async chat listener reads faction lookups while the main
-    // thread creates, deletes and edits factions from command handlers.
     private final Map<UUID, Faction> factions;
     private final Map<UUID, UUID> playerFactionMap;
     private final Map<UUID, List<UUID>> pendingInvites;
-    // Case-insensitive name -> faction id index so getFactionByName is O(1)
-    // instead of a linear scan; it backs the many name lookups on the command
-    // path (show, accept, ally, enemy, admin, ...).
     private final Map<String, UUID> factionsByName;
-    private final File dataFile;
+    private final AtomicBoolean dirty;
 
     public FactionManager(DarkFactions plugin) {
         this.plugin = plugin;
@@ -46,7 +39,7 @@ public class FactionManager {
         this.playerFactionMap = new ConcurrentHashMap<>();
         this.pendingInvites = new ConcurrentHashMap<>();
         this.factionsByName = new ConcurrentHashMap<>();
-        this.dataFile = new File(plugin.getDataFolder(), "factions.yml");
+        this.dirty = new AtomicBoolean(false);
     }
 
     // Canonical key for the name index: lower-cased with a fixed locale so the
@@ -76,7 +69,7 @@ public class FactionManager {
         factionsByName.put(nameKey(name), faction.getFactionId());
         playerFactionMap.put(leaderUuid, faction.getFactionId());
 
-        plugin.requestSave();
+        dirty.set(true);
         return faction;
     }
 
@@ -96,7 +89,7 @@ public class FactionManager {
         factions.remove(factionId);
         factionsByName.remove(nameKey(faction.getName()));
 
-        plugin.requestSave();
+        dirty.set(true);
         return true;
     }
 
@@ -130,7 +123,7 @@ public class FactionManager {
         factionsByName.remove(nameKey(faction.getName()));
         faction.setName(newName);
         factionsByName.put(nameKey(newName), factionId);
-        plugin.requestSave();
+        dirty.set(true);
         return true;
     }
 
@@ -150,7 +143,7 @@ public class FactionManager {
         playerFactionMap.put(playerUuid, factionId);
         pendingInvites.remove(playerUuid);
 
-        plugin.requestSave();
+        dirty.set(true);
         return true;
     }
 
@@ -169,7 +162,7 @@ public class FactionManager {
             deleteFaction(faction.getFactionId());
         }
 
-        plugin.requestSave();
+        dirty.set(true);
         return true;
     }
 
@@ -184,7 +177,7 @@ public class FactionManager {
         if (maxOfficers > 0 && faction.getOfficers().size() >= maxOfficers) return false;
 
         faction.promoteToOfficer(playerUuid);
-        plugin.requestSave();
+        dirty.set(true);
         return true;
     }
 
@@ -193,7 +186,7 @@ public class FactionManager {
         if (faction == null) return false;
         if (!faction.isOfficer(playerUuid)) return false;
         faction.demoteFromOfficer(playerUuid);
-        plugin.requestSave();
+        dirty.set(true);
         return true;
     }
 
@@ -202,7 +195,7 @@ public class FactionManager {
         if (faction == null) return false;
         if (!faction.isMember(newLeaderUuid)) return false;
         faction.setLeaderUuid(newLeaderUuid);
-        plugin.requestSave();
+        dirty.set(true);
         return true;
     }
 
@@ -251,7 +244,7 @@ public class FactionManager {
         faction.setHomeZ(location.getZ());
         faction.setHomeYaw(location.getYaw());
         faction.setHomePitch(location.getPitch());
-        plugin.requestSave();
+        dirty.set(true);
     }
 
     public Location getFactionHome(UUID factionId) {
@@ -289,122 +282,28 @@ public class FactionManager {
     }
 
     // ==========================================
-    // Save/Load
+    // Save/Load via DataStore
     // ==========================================
 
-    // Convert a list of stored UUID strings into UUIDs, skipping malformed entries
-    private List<UUID> parseUuidList(List<String> raw) {
-        List<UUID> result = new ArrayList<>();
-        for (String uuidStr : raw) {
-            try {
-                result.add(UUID.fromString(uuidStr));
-            } catch (IllegalArgumentException e) {
-                plugin.getLogger().warning("Skipping malformed UUID: " + uuidStr);
+    public void loadFromStore(DataStore store) {
+        for (Faction f : store.loadAllFactions()) {
+            factions.put(f.getFactionId(), f);
+            factionsByName.put(nameKey(f.getName()), f.getFactionId());
+            for (UUID muid : f.getMembers()) {
+                playerFactionMap.put(muid, f.getFactionId());
             }
+            plugin.getLogger().info("Loaded faction: " + f.getName());
         }
-        return result;
+        plugin.getLogger().info("Loaded " + factions.size() + " factions!");
     }
 
-    public void saveFactions() {
-        FileConfiguration config = new YamlConfiguration();
-
-        for (Faction faction : factions.values()) {
-            String path = "factions." + faction.getFactionId().toString();
-
-            config.set(path + ".name", faction.getName());
-            config.set(path + ".leader", faction.getLeaderUuid().toString());
-            config.set(path + ".power", faction.getPower());
-            config.set(path + ".maxPower", faction.getMaxPower());
-            config.set(path + ".elixir", faction.getElixir());
-            config.set(path + ".open", faction.isOpen());
-            config.set(path + ".creationTime", faction.getCreationTime());
-            config.set(path + ".motd", faction.getMotd());
-            config.set(path + ".description", faction.getDescription());
-            config.set(path + ".tag", faction.getTag());
-            config.set(path + ".pvpEnabled", faction.isPvpEnabled());
-            config.set(path + ".tntEnabled", faction.isTntEnabled());
-
-            List<String> memberStrings = new ArrayList<>();
-            for (UUID uuid : faction.getMembers()) memberStrings.add(uuid.toString());
-            config.set(path + ".members", memberStrings);
-
-            List<String> officerStrings = new ArrayList<>();
-            for (UUID uuid : faction.getOfficers()) officerStrings.add(uuid.toString());
-            config.set(path + ".officers", officerStrings);
-
-            List<String> enemyStrings = new ArrayList<>();
-            for (UUID uuid : faction.getEnemies()) enemyStrings.add(uuid.toString());
-            config.set(path + ".enemies", enemyStrings);
-
-            List<String> allyStrings = new ArrayList<>();
-            for (UUID uuid : faction.getAllies()) allyStrings.add(uuid.toString());
-            config.set(path + ".allies", allyStrings);
-
-            if (faction.hasHome()) {
-                config.set(path + ".home.world", faction.getWorldName());
-                config.set(path + ".home.x", faction.getHomeX());
-                config.set(path + ".home.y", faction.getHomeY());
-                config.set(path + ".home.z", faction.getHomeZ());
-                config.set(path + ".home.yaw", faction.getHomeYaw());
-                config.set(path + ".home.pitch", faction.getHomePitch());
+    public void saveToStoreAsync(SaveQueue queue) {
+        if (!dirty.getAndSet(false)) return;
+        queue.submit(() -> {
+            DataStore store = queue.store();
+            for (Faction f : factions.values()) {
+                store.saveFaction(f);
             }
-        }
-
-        YamlStore.save(config, dataFile, plugin.getLogger());
-    }
-
-    public void loadFactions() {
-        FileConfiguration config = YamlStore.load(dataFile, plugin.getLogger());
-        ConfigurationSection factionSection = config.getConfigurationSection("factions");
-        if (factionSection == null) return;
-
-        for (String key : factionSection.getKeys(false)) {
-            try {
-                String base = "factions." + key;
-
-                Faction faction = new Faction();
-                faction.setFactionId(UUID.fromString(key));
-                faction.setName(config.getString(base + ".name"));
-                faction.setLeaderUuid(UUID.fromString(config.getString(base + ".leader")));
-                faction.setPower(config.getDouble(base + ".power", plugin.getConfigManager().getFactionStartingPower()));
-                faction.setMaxPower(config.getDouble(base + ".maxPower", plugin.getConfigManager().getFactionStartingMaxPower()));
-                faction.setElixir(config.getDouble(base + ".elixir", 0.0));
-                faction.setOpen(config.getBoolean(base + ".open", plugin.getConfigManager().isDefaultOpen()));
-                faction.setCreationTime(config.getLong(base + ".creationTime", System.currentTimeMillis()));
-                faction.setMotd(config.getString(base + ".motd", ""));
-                faction.setDescription(config.getString(base + ".description", ""));
-                faction.setTag(config.getString(base + ".tag", ""));
-                faction.setPvpEnabled(config.getBoolean(base + ".pvpEnabled", plugin.getConfigManager().isDefaultPvp()));
-                faction.setTntEnabled(config.getBoolean(base + ".tntEnabled", plugin.getConfigManager().isDefaultTnt()));
-
-                // The list getters return defensive copies, so write through the
-                // setters which replace the backing lists. Mutating the getters
-                // would silently discard every member, officer, enemy and ally.
-                faction.setMembers(parseUuidList(config.getStringList(base + ".members")));
-                faction.setOfficers(parseUuidList(config.getStringList(base + ".officers")));
-                faction.setEnemies(parseUuidList(config.getStringList(base + ".enemies")));
-                faction.setAllies(parseUuidList(config.getStringList(base + ".allies")));
-
-                if (config.contains(base + ".home.world")) {
-                    faction.setWorldName(config.getString(base + ".home.world"));
-                    faction.setHomeX(config.getDouble(base + ".home.x"));
-                    faction.setHomeY(config.getDouble(base + ".home.y"));
-                    faction.setHomeZ(config.getDouble(base + ".home.z"));
-                    faction.setHomeYaw((float) config.getDouble(base + ".home.yaw"));
-                    faction.setHomePitch((float) config.getDouble(base + ".home.pitch"));
-                }
-
-                factions.put(faction.getFactionId(), faction);
-                factionsByName.put(nameKey(faction.getName()), faction.getFactionId());
-                for (UUID memberUuid : faction.getMembers()) {
-                    playerFactionMap.put(memberUuid, faction.getFactionId());
-                }
-
-                plugin.getLogger().info("Loaded faction: " + faction.getName());
-
-            } catch (Exception e) {
-                plugin.getLogger().log(java.util.logging.Level.SEVERE, "Failed to load faction: " + key, e);
-            }
-        }
+        });
     }
 }

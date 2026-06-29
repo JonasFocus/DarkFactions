@@ -73,7 +73,30 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
-                <version>3.6.0</version>
+                <version>3.6.2</version>
+                <dependencies>
+                    <!-- Java 25 emits class file major version 69; shade's bundled ASM is too old to read it -->
+                    <dependency>
+                        <groupId>org.ow2.asm</groupId>
+                        <artifactId>asm</artifactId>
+                        <version>9.10.1</version>
+                    </dependency>
+                    <dependency>
+                        <groupId>org.ow2.asm</groupId>
+                        <artifactId>asm-commons</artifactId>
+                        <version>9.10.1</version>
+                    </dependency>
+                    <dependency>
+                        <groupId>org.ow2.asm</groupId>
+                        <artifactId>asm-tree</artifactId>
+                        <version>9.10.1</version>
+                    </dependency>
+                    <dependency>
+                        <groupId>org.ow2.asm</groupId>
+                        <artifactId>asm-analysis</artifactId>
+                        <version>9.10.1</version>
+                    </dependency>
+                </dependencies>
                 <executions>
                     <execution>
                         <phase>package</phase>
@@ -88,10 +111,10 @@
                                     <pattern>com.mysql.cj</pattern>
                                     <shadedPattern>com.darkfactions.libs.mysql</shadedPattern>
                                 </relocation>
-                                <relocation>
-                                    <pattern>org.sqlite</pattern>
-                                    <shadedPattern>com.darkfactions.libs.sqlite</shadedPattern>
-                                </relocation>
+                                <!-- Do NOT relocate org.sqlite: sqlite-jdbc ships a precompiled JNI .so whose
+                                     exported symbols are tied to the original package name. Relocating breaks
+                                     native linkage (UnsatisfiedLinkError on NativeDB._open_utf8). -->
+
                             </relocations>
                             <filters>
                                 <filter>

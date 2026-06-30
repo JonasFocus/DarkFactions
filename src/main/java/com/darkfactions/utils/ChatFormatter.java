@@ -27,13 +27,18 @@ public final class ChatFormatter {
         if (template == null) {
             return "";
         }
-        return template
+        // Substitute the template/tag/name placeholders and translate '&' colour
+        // codes first, then substitute {message} last. Doing the message
+        // substitution before the colour translation (the old order) let a
+        // player inject real colour/formatting codes into faction/ally chat by
+        // typing '&' in their message.
+        String withoutMessage = template
                 .replace("{prefix}", orEmpty(prefix))
                 .replace("{tag}", orEmpty(tag))
                 .replace("{player}", orEmpty(player))
                 .replace("{faction}", orEmpty(faction))
-                .replace("{message}", orEmpty(message))
                 .replace('&', SECTION);
+        return withoutMessage.replace("{message}", orEmpty(message));
     }
 
     private static String orEmpty(String value) {

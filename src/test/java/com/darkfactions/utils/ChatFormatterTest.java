@@ -29,8 +29,14 @@ class ChatFormatterTest {
     }
 
     @Test
-    void messageColourCodesAreAlsoTranslated() {
-        // A & inside the player's message is translated too, matching the original behaviour.
-        assertEquals("§cred", ChatFormatter.format("{message}", "", "", "", "", "&cred"));
+    void messageColourCodesAreNotTranslated() {
+        // A & inside the player's message must NOT become a real colour code -
+        // otherwise any player could inject formatting into faction/ally chat.
+        assertEquals("&cred", ChatFormatter.format("{message}", "", "", "", "", "&cred"));
+    }
+
+    @Test
+    void templateColourCodesStillTranslateAroundMessage() {
+        assertEquals("§chi &cinjected", ChatFormatter.format("&c{message}", "", "", "", "", "hi &cinjected"));
     }
 }

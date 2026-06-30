@@ -1995,13 +1995,19 @@ public class FactionCommand implements CommandExecutor {
     }
 
     private boolean handleAdminConsole(CommandSender sender, String[] args) {
-        if (args.length < 3) return false;
+        if (args.length < 3) {
+            sender.sendMessage(msg.error("Usage: /f admin <list|power|elixir|remove> [args]"));
+            return true;
+        }
         String adminSub = args[1].toLowerCase();
         switch (adminSub) {
             case "list":
                 return handleListConsole(sender);
             case "power":
-                if (args.length < 4) return false;
+                if (args.length < 4) {
+                    sender.sendMessage(msg.error("Usage: /f admin power <faction> <amount>"));
+                    return true;
+                }
                 Faction powerFaction = plugin.getFactionManager().getFactionByName(args[2]);
                 if (powerFaction == null) {
                     sender.sendMessage(msg.error("Faction not found!"));
@@ -2016,7 +2022,10 @@ public class FactionCommand implements CommandExecutor {
                 }
                 return true;
             case "elixir":
-                if (args.length < 4) return false;
+                if (args.length < 4) {
+                    sender.sendMessage(msg.error("Usage: /f admin elixir <faction> <amount>"));
+                    return true;
+                }
                 Faction elixirFaction = plugin.getFactionManager().getFactionByName(args[2]);
                 if (elixirFaction == null) {
                     sender.sendMessage(msg.error("Faction not found!"));
@@ -2031,7 +2040,6 @@ public class FactionCommand implements CommandExecutor {
                 }
                 return true;
             case "remove":
-                if (args.length < 3) return false;
                 Faction removeFaction = plugin.getFactionManager().getFactionByName(args[2]);
                 if (removeFaction == null) {
                     sender.sendMessage(msg.error("Faction not found!"));
@@ -2043,7 +2051,8 @@ public class FactionCommand implements CommandExecutor {
                 sender.sendMessage(msg.success("Force removed faction: " + removedName));
                 return true;
             default:
-                return false;
+                sender.sendMessage(msg.error("Unknown admin subcommand. Usage: /f admin <list|power|elixir|remove> [args]"));
+                return true;
         }
     }
 

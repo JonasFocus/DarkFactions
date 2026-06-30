@@ -335,7 +335,7 @@ public class FactionCommand implements CommandExecutor {
             return true;
         }
 
-        Player target = Bukkit.getPlayer(args[1]);
+        Player target = Bukkit.getPlayerExact(args[1]);
         if (target == null || !target.isOnline()) {
             player.sendMessage(msg.error("That player is not online!"));
             return true;
@@ -380,7 +380,7 @@ public class FactionCommand implements CommandExecutor {
             return true;
         }
 
-        Player target = Bukkit.getPlayer(args[1]);
+        Player target = Bukkit.getPlayerExact(args[1]);
         if (target == null || !target.isOnline()) {
             player.sendMessage(msg.error("That player is not online!"));
             return true;
@@ -525,7 +525,7 @@ public class FactionCommand implements CommandExecutor {
             return true;
         }
 
-        Player target = Bukkit.getPlayer(args[1]);
+        Player target = Bukkit.getPlayerExact(args[1]);
         UUID targetUuid;
 
         if (target != null && target.isOnline() && faction.isMember(target.getUniqueId())) {
@@ -1003,7 +1003,7 @@ public class FactionCommand implements CommandExecutor {
 
         if (args.length >= 2) {
             // Look up by player name first
-            Player target = Bukkit.getPlayer(args[1]);
+            Player target = Bukkit.getPlayerExact(args[1]);
             if (target != null && target.isOnline()) {
                 faction = plugin.getFactionManager().getPlayerFaction(target.getUniqueId());
             } else {
@@ -2149,7 +2149,7 @@ public class FactionCommand implements CommandExecutor {
     // Find a player's UUID by name within a faction
     private UUID findPlayerUuidByName(String name, Faction faction) {
         // Check online players first
-        Player onlineTarget = Bukkit.getPlayer(name);
+        Player onlineTarget = Bukkit.getPlayerExact(name);
         if (onlineTarget != null && faction.isMember(onlineTarget.getUniqueId())) {
             return onlineTarget.getUniqueId();
         }

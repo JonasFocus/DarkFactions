@@ -529,6 +529,11 @@ public class FactionListener implements Listener {
         // Combat tag check — punish combat loggers
         if (plugin.getCombatManager().handleQuit(playerUuid)) {
             if (plugin.getConfigManager().isCombatTagKillOnQuit()) {
+                // PlayerQuitEvent runs while the connection is already closing,
+                // so setHealth(0) here frequently doesn't propagate through the
+                // normal PlayerDeathEvent pipeline. Apply the power-loss penalty
+                // directly instead of relying on that event to fire.
+                plugin.getPowerManager().onPlayerDeath(playerUuid);
                 player.setHealth(0);
                 plugin.getLogger().warning(player.getName() + " combat-logged and was killed.");
             }

@@ -45,6 +45,14 @@ public class FactionManager {
         this.dirty = new AtomicBoolean(false);
     }
 
+    // Other managers (Elixir/Power/Claim) mutate a Faction's power/elixir
+    // directly on the shared model object instead of through this class, so
+    // they call this to make sure that change actually gets persisted on the
+    // next save cycle.
+    public void markDirty() {
+        dirty.set(true);
+    }
+
     // Canonical key for the name index: lower-cased with a fixed locale so the
     // mapping never shifts with the server's default locale.
     private static String nameKey(String name) {

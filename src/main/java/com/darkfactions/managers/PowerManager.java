@@ -164,6 +164,7 @@ public class PowerManager {
         Faction faction = plugin.getFactionManager().getFaction(factionId);
         if (faction == null) return;
         faction.addPower(raidPower);
+        plugin.getFactionManager().markDirty();
     }
 
     // Regenerate power for ALL players

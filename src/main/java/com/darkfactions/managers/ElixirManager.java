@@ -73,14 +73,14 @@ public class ElixirManager {
         Faction faction = plugin.getFactionManager().getFaction(factionId);
         if (faction != null) {
             faction.addElixir(amount);
-            pendingDirty.set(true);
+            plugin.getFactionManager().markDirty();
         }
     }
 
     public boolean removeFactionElixir(UUID factionId, double amount) {
         Faction faction = plugin.getFactionManager().getFaction(factionId);
         if (faction != null && faction.removeElixir(amount)) {
-            pendingDirty.set(true);
+            plugin.getFactionManager().markDirty();
             return true;
         }
         return false;
@@ -110,6 +110,7 @@ public class ElixirManager {
             // so removeElixir can never fail.
             double stolenAmount = Math.min(victimFaction.getElixir() * raidStealPercent, victimFaction.getElixir());
             victimFaction.removeElixir(stolenAmount);
+            plugin.getFactionManager().markDirty();
         }
     }
 
@@ -120,7 +121,7 @@ public class ElixirManager {
             Faction faction = plugin.getFactionManager().getPlayerFaction(playerUuid);
             if (faction != null) {
                 faction.addElixir(dailyBonus);
-                pendingDirty.set(true); // persist the faction's new balance
+                plugin.getFactionManager().markDirty();
             }
         } else {
             // Add to pending - claimed via /f elixir
@@ -140,6 +141,7 @@ public class ElixirManager {
 
         double amount = pendingElixir.remove(playerUuid);
         faction.addElixir(amount);
+        plugin.getFactionManager().markDirty();
         pendingElixirDeletions.add(playerUuid);
         pendingDirty.set(true);
         return true;

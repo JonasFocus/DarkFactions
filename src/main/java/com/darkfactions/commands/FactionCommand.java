@@ -5,6 +5,7 @@ package com.darkfactions.commands;
 import com.darkfactions.DarkFactions;
 import com.darkfactions.managers.ClaimResult;
 import com.darkfactions.models.Faction;
+import com.darkfactions.utils.FactionListFormatter;
 import com.darkfactions.utils.FactionNameValidator;
 import com.darkfactions.utils.MessageUtils;
 
@@ -1029,12 +1030,9 @@ public class FactionCommand implements CommandExecutor {
         player.sendMessage(msg.header("Factions (" + factions.size() + ")"));
 
         for (Faction faction : factions) {
-            player.sendMessage(msg.info(
-                    faction.getFormattedTag() + faction.getName() + " - " +
-                    faction.getMemberCount() + " members - " +
-                    String.format("%.0f", faction.getPower()) + " power - " +
-                    plugin.getClaimManager().getClaimCount(faction.getFactionId()) + " claims"
-            ));
+            player.sendMessage(msg.info(FactionListFormatter.listRow(
+                    faction.getFormattedTag(), faction.getName(), faction.getMemberCount(),
+                    faction.getPower(), plugin.getClaimManager().getClaimCount(faction.getFactionId()))));
         }
 
         return true;
@@ -1142,22 +1140,14 @@ public class FactionCommand implements CommandExecutor {
 
         int rank = 1;
         for (Faction faction : sorted) {
-            String value = "";
-            switch (sortBy) {
-                case "elixir":
-                    value = String.format("%.0f", faction.getElixir()) + " elixir";
-                    break;
-                case "members":
-                    value = faction.getMemberCount() + " members";
-                    break;
-                case "land":
-                    value = plugin.getClaimManager().getClaimCount(faction.getFactionId()) + " claims";
-                    break;
-                default:
-                    value = String.format("%.1f", faction.getPower()) + " power";
-                    break;
-            }
-            player.sendMessage(msg.info(rank + ". " + faction.getFormattedTag() + faction.getName() + " - " + value));
+            String value = switch (sortBy) {
+                case "elixir" -> FactionListFormatter.metric(faction.getElixir(), 0, "elixir");
+                case "members" -> faction.getMemberCount() + " members";
+                case "land" -> plugin.getClaimManager().getClaimCount(faction.getFactionId()) + " claims";
+                default -> FactionListFormatter.metric(faction.getPower(), 1, "power");
+            };
+            player.sendMessage(msg.info(FactionListFormatter.rankRow(
+                    rank, faction.getFormattedTag(), faction.getName(), value)));
             rank++;
         }
 
@@ -1863,11 +1853,9 @@ public class FactionCommand implements CommandExecutor {
                 }
                 sender.sendMessage(msg.header("Factions (" + factions.size() + ")"));
                 for (Faction f : factions) {
-                    sender.sendMessage(msg.info(
-                            f.getName() + " - " + f.getMemberCount() + " members - "
-                            + String.format("%.0f", f.getPower()) + " power - "
-                            + plugin.getClaimManager().getClaimCount(f.getFactionId()) + " claims"
-                    ));
+                    sender.sendMessage(msg.info(FactionListFormatter.listRow(
+                            "", f.getName(), f.getMemberCount(),
+                            f.getPower(), plugin.getClaimManager().getClaimCount(f.getFactionId()))));
                 }
                 return true;
 
@@ -1914,7 +1902,8 @@ public class FactionCommand implements CommandExecutor {
 
         int rank = 1;
         for (Faction f : sorted) {
-            sender.sendMessage(msg.info(rank + ". " + f.getName() + " - " + String.format("%.1f", f.getPower()) + " power"));
+            sender.sendMessage(msg.info(FactionListFormatter.rankRow(
+                    rank, "", f.getName(), FactionListFormatter.metric(f.getPower(), 1, "power"))));
             rank++;
         }
         return true;
@@ -1981,11 +1970,9 @@ public class FactionCommand implements CommandExecutor {
         }
         sender.sendMessage(msg.header("Factions (" + factions.size() + ")"));
         for (Faction f : factions) {
-            sender.sendMessage(msg.info(
-                    f.getName() + " - " + f.getMemberCount() + " members - "
-                    + String.format("%.0f", f.getPower()) + " power - "
-                    + plugin.getClaimManager().getClaimCount(f.getFactionId()) + " claims"
-            ));
+            sender.sendMessage(msg.info(FactionListFormatter.listRow(
+                    "", f.getName(), f.getMemberCount(),
+                    f.getPower(), plugin.getClaimManager().getClaimCount(f.getFactionId()))));
         }
         return true;
     }

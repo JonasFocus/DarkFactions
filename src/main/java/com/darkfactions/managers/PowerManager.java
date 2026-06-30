@@ -16,6 +16,8 @@ import com.darkfactions.storage.SaveQueue;
 import com.darkfactions.utils.ConfigManager;
 import com.darkfactions.utils.PowerRules;
 
+import org.bukkit.entity.Player;
+
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -167,6 +169,8 @@ public class PowerManager {
     // Regenerate power for ALL players
     private void regenAllPlayerPower() {
         for (FactionPlayer data : playerDataMap.values()) {
+            Player player = plugin.getServer().getPlayer(data.getPlayerUuid());
+            if (player == null || !player.isOnline()) continue;
             if (data.getPower() < data.getMaxPower()) {
                 data.setPower(PowerRules.applyGain(data.getPower(), powerRegenAmount, data.getMaxPower()));
                 dirty.set(true);

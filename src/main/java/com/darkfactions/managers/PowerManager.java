@@ -127,6 +127,7 @@ public class PowerManager {
         FactionPlayer data = getPlayerData(playerUuid);
         data.setPower(PowerRules.applyLoss(data.getPower(), powerLossOnDeath, minPlayerPower));
         data.setDeaths(data.getDeaths() + 1);
+        dirty.set(true);
     }
 
     // Called when a player dies from PVE (mobs, fall, lava, etc.)
@@ -135,6 +136,7 @@ public class PowerManager {
         FactionPlayer data = getPlayerData(playerUuid);
         data.setPower(PowerRules.applyLoss(data.getPower(), powerLossOnPveDeath, minPlayerPower));
         data.setDeaths(data.getDeaths() + 1);
+        dirty.set(true);
     }
 
     // Called when a player kills another player
@@ -142,6 +144,7 @@ public class PowerManager {
         FactionPlayer data = getPlayerData(playerUuid);
         data.setPower(PowerRules.applyGain(data.getPower(), powerGainOnKill, maxPlayerPower));
         data.setKills(data.getKills() + 1);
+        dirty.set(true);
     }
 
     // Called when a player kills a mob
@@ -149,6 +152,7 @@ public class PowerManager {
         if (powerGainOnMobKill <= 0) return;
         FactionPlayer data = getPlayerData(playerUuid);
         data.setPower(PowerRules.applyGain(data.getPower(), powerGainOnMobKill, maxPlayerPower));
+        dirty.set(true);
     }
 
     // Called when a player's faction wins a raid
@@ -165,6 +169,7 @@ public class PowerManager {
         for (FactionPlayer data : playerDataMap.values()) {
             if (data.getPower() < data.getMaxPower()) {
                 data.setPower(PowerRules.applyGain(data.getPower(), powerRegenAmount, data.getMaxPower()));
+                dirty.set(true);
             }
         }
     }
@@ -184,6 +189,7 @@ public class PowerManager {
 
         data.setPower(PowerRules.applyOfflineDecay(data.getPower(), offlineHours,
                 offlineDecayMaxHours, offlineDecayPerHour, minPlayerPower));
+        dirty.set(true);
     }
 
     // ==========================================

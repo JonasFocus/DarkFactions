@@ -106,8 +106,9 @@ public class ElixirManager {
 
         Faction victimFaction = plugin.getFactionManager().getFaction(victimFactionId);
         if (victimFaction != null) {
-            // Cap the steal at the victim's current balance so removeElixir can never fail.
-            double stolenAmount = Math.min(perRaid * raidStealPercent, victimFaction.getElixir());
+            // Steal a percentage of the victim's actual balance, capped at what they have
+            // so removeElixir can never fail.
+            double stolenAmount = Math.min(victimFaction.getElixir() * raidStealPercent, victimFaction.getElixir());
             victimFaction.removeElixir(stolenAmount);
         }
     }

@@ -528,7 +528,7 @@ public class FactionCommand implements CommandExecutor {
         Player target = Bukkit.getPlayer(args[1]);
         UUID targetUuid;
 
-        if (target != null && target.isOnline()) {
+        if (target != null && target.isOnline() && faction.isMember(target.getUniqueId())) {
             targetUuid = target.getUniqueId();
         } else {
             targetUuid = findPlayerUuidByName(args[1], faction);
@@ -552,8 +552,9 @@ public class FactionCommand implements CommandExecutor {
 
         player.sendMessage(msg.success("Player has been kicked from the faction!"));
 
-        if (target != null && target.isOnline()) {
-            target.sendMessage(msg.error("You have been kicked from " + faction.getName() + "!"));
+        Player kickedPlayer = Bukkit.getPlayer(targetUuid);
+        if (kickedPlayer != null && kickedPlayer.isOnline()) {
+            kickedPlayer.sendMessage(msg.error("You have been kicked from " + faction.getName() + "!"));
         }
 
         broadcastToFaction(faction, msg.info("A player has been kicked from the faction."));

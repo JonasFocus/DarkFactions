@@ -16,7 +16,10 @@ import com.darkfactions.utils.TerritoryMessageFormatter;
 import org.bukkit.Chunk;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.Projectile;
+import org.bukkit.projectiles.ProjectileSource;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
@@ -195,7 +198,8 @@ public class FactionListener implements Listener {
             return;
         }
 
-        if (!(event.getDamager() instanceof Player attacker)) {
+        Player attacker = resolveAttacker(event.getDamager());
+        if (attacker == null) {
             return;
         }
 
@@ -267,6 +271,23 @@ public class FactionListener implements Listener {
 
         // Cancel any pending home teleport for the victim
         plugin.getFactionCommand().cancelWarmup(victim.getUniqueId(), true);
+    }
+
+    // Resolves the actual attacking Player for a damage source: either the
+    // damager itself, or whoever fired it if the damager is a projectile
+    // (arrow, trident, thrown potion, etc.) — without this, ranged PvP
+    // bypasses every faction/territory protection below.
+    private Player resolveAttacker(Entity damager) {
+        if (damager instanceof Player player) {
+            return player;
+        }
+        if (damager instanceof Projectile projectile) {
+            ProjectileSource shooter = projectile.getShooter();
+            if (shooter instanceof Player player) {
+                return player;
+            }
+        }
+        return null;
     }
 
     // ==========================================

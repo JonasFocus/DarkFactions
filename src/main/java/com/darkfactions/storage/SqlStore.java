@@ -14,12 +14,22 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.logging.Level;
 
 public class SqlStore implements DataStore {
 
     private static final int SCHEMA_VERSION = 1;
+
+    // Role values stored in faction_members.role
+    private static final String ROLE_LEADER = "LEADER";
+    private static final String ROLE_OFFICER = "OFFICER";
+    private static final String ROLE_MEMBER = "MEMBER";
+
+    // Relation values stored in faction_relations.relation
+    private static final String RELATION_ALLY = "ALLY";
+    private static final String RELATION_ENEMY = "ENEMY";
 
     private final DarkFactions plugin;
     private final DatabaseManager db;
@@ -139,9 +149,9 @@ public class SqlStore implements DataStore {
                 f.setPvpEnabled(rs.getBoolean("pvp_enabled"));
                 f.setTntEnabled(rs.getBoolean("tnt_enabled"));
                 f.setCreationTime(rs.getLong("created"));
-                f.setMotd(rs.getString("motd") != null ? rs.getString("motd") : "");
-                f.setDescription(rs.getString("description") != null ? rs.getString("description") : "");
-                f.setTag(rs.getString("tag") != null ? rs.getString("tag") : "");
+                f.setMotd(getStringOrEmpty(rs, "motd"));
+                f.setDescription(getStringOrEmpty(rs, "description"));
+                f.setTag(getStringOrEmpty(rs, "tag"));
 
                 String hw = rs.getString("home_world");
                 if (hw != null && !hw.isEmpty()) {
@@ -159,56 +169,58 @@ public class SqlStore implements DataStore {
             plugin.getLogger().log(Level.SEVERE, "Failed to load factions", e);
         }
 
-        // Load members
-        String memberSql = "SELECT player_uuid, role FROM faction_members WHERE faction_id = ?";
-        for (Faction f : result.values()) {
-            try (Connection c = db.getConnection();
-                 PreparedStatement s = c.prepareStatement(memberSql)) {
-                s.setString(1, f.getFactionId().toString());
-                try (ResultSet rs = s.executeQuery()) {
-                    List<UUID> members = new ArrayList<>();
-                    List<UUID> officers = new ArrayList<>();
-                    while (rs.next()) {
-                        UUID puid = UUID.fromString(rs.getString("player_uuid"));
-                        String role = rs.getString("role");
-                        if ("OFFICER".equals(role)) {
-                            officers.add(puid);
-                        } else {
-                            members.add(puid);
-                        }
-                    }
-                    f.setMembers(members);
-                    f.setOfficers(officers);
+        // Load members for every faction in one query, then group in memory, so
+        // startup cost is two extra queries rather than two per faction.
+        Map<UUID, List<UUID>> membersByFaction = new HashMap<>();
+        Map<UUID, List<UUID>> officersByFaction = new HashMap<>();
+        try (Connection c = db.getConnection();
+             PreparedStatement s = c.prepareStatement("SELECT faction_id, player_uuid, role FROM faction_members");
+             ResultSet rs = s.executeQuery()) {
+            while (rs.next()) {
+                UUID fid = UUID.fromString(rs.getString("faction_id"));
+                if (!result.containsKey(fid)) {
+                    continue; // orphan row with no parent faction
                 }
-            } catch (SQLException e) {
-                plugin.getLogger().log(Level.SEVERE, "Failed to load members for " + f.getName(), e);
+                UUID puid = UUID.fromString(rs.getString("player_uuid"));
+                if (ROLE_OFFICER.equals(rs.getString("role"))) {
+                    officersByFaction.computeIfAbsent(fid, k -> new ArrayList<>()).add(puid);
+                } else {
+                    membersByFaction.computeIfAbsent(fid, k -> new ArrayList<>()).add(puid);
+                }
             }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.SEVERE, "Failed to load faction members", e);
         }
 
-        // Load relations
-        String relSql = "SELECT target_id, relation FROM faction_relations WHERE faction_id = ?";
-        for (Faction f : result.values()) {
-            try (Connection c = db.getConnection();
-                 PreparedStatement s = c.prepareStatement(relSql)) {
-                s.setString(1, f.getFactionId().toString());
-                try (ResultSet rs = s.executeQuery()) {
-                    List<UUID> allies = new ArrayList<>();
-                    List<UUID> enemies = new ArrayList<>();
-                    while (rs.next()) {
-                        UUID tid = UUID.fromString(rs.getString("target_id"));
-                        String rel = rs.getString("relation");
-                        if ("ALLY".equals(rel)) {
-                            allies.add(tid);
-                        } else if ("ENEMY".equals(rel)) {
-                            enemies.add(tid);
-                        }
-                    }
-                    f.setAllies(allies);
-                    f.setEnemies(enemies);
+        // Load relations for every faction in one query, then group in memory.
+        Map<UUID, List<UUID>> alliesByFaction = new HashMap<>();
+        Map<UUID, List<UUID>> enemiesByFaction = new HashMap<>();
+        try (Connection c = db.getConnection();
+             PreparedStatement s = c.prepareStatement("SELECT faction_id, target_id, relation FROM faction_relations");
+             ResultSet rs = s.executeQuery()) {
+            while (rs.next()) {
+                UUID fid = UUID.fromString(rs.getString("faction_id"));
+                if (!result.containsKey(fid)) {
+                    continue; // orphan row with no parent faction
                 }
-            } catch (SQLException e) {
-                plugin.getLogger().log(Level.SEVERE, "Failed to load relations for " + f.getName(), e);
+                UUID tid = UUID.fromString(rs.getString("target_id"));
+                String rel = rs.getString("relation");
+                if (RELATION_ALLY.equals(rel)) {
+                    alliesByFaction.computeIfAbsent(fid, k -> new ArrayList<>()).add(tid);
+                } else if (RELATION_ENEMY.equals(rel)) {
+                    enemiesByFaction.computeIfAbsent(fid, k -> new ArrayList<>()).add(tid);
+                }
             }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.SEVERE, "Failed to load faction relations", e);
+        }
+
+        for (Faction f : result.values()) {
+            UUID fid = f.getFactionId();
+            f.setMembers(membersByFaction.getOrDefault(fid, new ArrayList<>()));
+            f.setOfficers(officersByFaction.getOrDefault(fid, new ArrayList<>()));
+            f.setAllies(alliesByFaction.getOrDefault(fid, new ArrayList<>()));
+            f.setEnemies(enemiesByFaction.getOrDefault(fid, new ArrayList<>()));
         }
 
         return result.values();
@@ -233,51 +245,96 @@ public class SqlStore implements DataStore {
 
     @Override
     public void saveFaction(Faction faction) {
-        String sql = "REPLACE INTO factions (id, name, leader, description, motd, tag, "
+        String fid = faction.getFactionId().toString();
+        String factionSql = "REPLACE INTO factions (id, name, leader, description, motd, tag, "
                 + "home_world, home_x, home_y, home_z, home_yaw, home_pitch, "
                 + "power, max_power, elixir, open, pvp_enabled, tnt_enabled, created) "
                 + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-        execute(sql,
-                faction.getFactionId().toString(),
-                faction.getName(),
-                faction.getLeaderUuid().toString(),
-                faction.getDescription(),
-                faction.getMotd(),
-                faction.getTag(),
-                faction.hasHome() ? faction.getWorldName() : null,
-                faction.hasHome() ? faction.getHomeX() : 0,
-                faction.hasHome() ? faction.getHomeY() : 0,
-                faction.hasHome() ? faction.getHomeZ() : 0,
-                faction.hasHome() ? faction.getHomeYaw() : 0,
-                faction.hasHome() ? faction.getHomePitch() : 0,
-                faction.getPower(),
-                faction.getMaxPower(),
-                faction.getElixir(),
-                faction.isOpen(),
-                faction.isPvpEnabled(),
-                faction.isTntEnabled(),
-                faction.getCreationTime());
 
-        // Members
-        execute("DELETE FROM faction_members WHERE faction_id = ?", faction.getFactionId().toString());
-        for (UUID muid : faction.getMembers()) {
-            String role = faction.isOfficer(muid) ? "OFFICER" : "MEMBER";
-            if (faction.isLeader(muid)) {
-                role = "LEADER";
+        // The faction row, its members and its relations are written together in a
+        // single transaction so a mid-save failure can't leave a faction with stale
+        // or missing members/relations. All statements share one pooled connection.
+        try (Connection c = db.getConnection()) {
+            boolean previousAutoCommit = c.getAutoCommit();
+            c.setAutoCommit(false);
+            try {
+                try (PreparedStatement s = c.prepareStatement(factionSql)) {
+                    bind(s,
+                            fid,
+                            faction.getName(),
+                            faction.getLeaderUuid().toString(),
+                            faction.getDescription(),
+                            faction.getMotd(),
+                            faction.getTag(),
+                            faction.hasHome() ? faction.getWorldName() : null,
+                            faction.hasHome() ? faction.getHomeX() : 0,
+                            faction.hasHome() ? faction.getHomeY() : 0,
+                            faction.hasHome() ? faction.getHomeZ() : 0,
+                            faction.hasHome() ? faction.getHomeYaw() : 0,
+                            faction.hasHome() ? faction.getHomePitch() : 0,
+                            faction.getPower(),
+                            faction.getMaxPower(),
+                            faction.getElixir(),
+                            faction.isOpen(),
+                            faction.isPvpEnabled(),
+                            faction.isTntEnabled(),
+                            faction.getCreationTime());
+                    s.executeUpdate();
+                }
+
+                // Members: clear and rewrite from the current in-memory state.
+                try (PreparedStatement s = c.prepareStatement(
+                        "DELETE FROM faction_members WHERE faction_id = ?")) {
+                    s.setString(1, fid);
+                    s.executeUpdate();
+                }
+                try (PreparedStatement s = c.prepareStatement(
+                        "INSERT INTO faction_members (faction_id, player_uuid, role) VALUES (?, ?, ?)")) {
+                    for (UUID muid : faction.getMembers()) {
+                        String role = faction.isLeader(muid) ? ROLE_LEADER
+                                : faction.isOfficer(muid) ? ROLE_OFFICER : ROLE_MEMBER;
+                        bind(s, fid, muid.toString(), role);
+                        s.addBatch();
+                    }
+                    s.executeBatch();
+                }
+
+                // Relations: clear and rewrite allies then enemies.
+                try (PreparedStatement s = c.prepareStatement(
+                        "DELETE FROM faction_relations WHERE faction_id = ?")) {
+                    s.setString(1, fid);
+                    s.executeUpdate();
+                }
+                try (PreparedStatement s = c.prepareStatement(
+                        "INSERT INTO faction_relations (faction_id, target_id, relation) VALUES (?, ?, ?)")) {
+                    Set<UUID> allyIds = new HashSet<>(faction.getAllies());
+                    for (UUID aid : allyIds) {
+                        bind(s, fid, aid.toString(), RELATION_ALLY);
+                        s.addBatch();
+                    }
+                    for (UUID eid : faction.getEnemies()) {
+                        // faction_relations is keyed by (faction_id, target_id), so a
+                        // target can hold only one relation. If the command layer left
+                        // a target in both sets, ally wins (matching the user's intent
+                        // and the old per-statement behavior) and the duplicate enemy
+                        // row is skipped so the batch and its transaction don't fail.
+                        if (!allyIds.contains(eid)) {
+                            bind(s, fid, eid.toString(), RELATION_ENEMY);
+                            s.addBatch();
+                        }
+                    }
+                    s.executeBatch();
+                }
+
+                c.commit();
+            } catch (SQLException e) {
+                c.rollback();
+                throw e;
+            } finally {
+                c.setAutoCommit(previousAutoCommit);
             }
-            execute("INSERT INTO faction_members (faction_id, player_uuid, role) VALUES (?, ?, ?)",
-                    faction.getFactionId().toString(), muid.toString(), role);
-        }
-
-        // Relations
-        execute("DELETE FROM faction_relations WHERE faction_id = ?", faction.getFactionId().toString());
-        for (UUID aid : faction.getAllies()) {
-            execute("INSERT INTO faction_relations (faction_id, target_id, relation) VALUES (?, ?, 'ALLY')",
-                    faction.getFactionId().toString(), aid.toString());
-        }
-        for (UUID eid : faction.getEnemies()) {
-            execute("INSERT INTO faction_relations (faction_id, target_id, relation) VALUES (?, ?, 'ENEMY')",
-                    faction.getFactionId().toString(), eid.toString());
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.SEVERE, "Failed to save faction " + faction.getName(), e);
         }
     }
 
@@ -432,15 +489,27 @@ public class SqlStore implements DataStore {
 
     // ========== Helpers ==========
 
+    // Read a string column, mapping SQL NULL to an empty string so callers never
+    // store null. Reads the column once instead of the getString-twice ternary.
+    private static String getStringOrEmpty(ResultSet rs, String column) throws SQLException {
+        String value = rs.getString(column);
+        return value != null ? value : "";
+    }
+
     private void execute(String sql, Object... params) {
         try (Connection c = db.getConnection();
              PreparedStatement s = c.prepareStatement(sql)) {
-            for (int i = 0; i < params.length; i++) {
-                s.setObject(i + 1, params[i]);
-            }
+            bind(s, params);
             s.executeUpdate();
         } catch (SQLException e) {
             plugin.getLogger().log(Level.SEVERE, "SQL error: " + sql, e);
+        }
+    }
+
+    // Bind positional parameters (1-based) onto a prepared statement.
+    private static void bind(PreparedStatement s, Object... params) throws SQLException {
+        for (int i = 0; i < params.length; i++) {
+            s.setObject(i + 1, params[i]);
         }
     }
 }

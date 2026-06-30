@@ -16,6 +16,7 @@ import com.darkfactions.utils.TerritoryMessageFormatter;
 import org.bukkit.Chunk;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
+import org.bukkit.block.BlockFace;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Projectile;
@@ -42,6 +43,7 @@ import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -296,20 +298,7 @@ public class FactionListener implements Listener {
     // ==========================================
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onEntityExplode(EntityExplodeEvent event) {
-        // Check each block in the explosion
-        event.blockList().removeIf(block -> {
-            UUID ownerId = plugin.getClaimManager().getLocationOwner(block.getLocation());
-            if (ownerId == null) {
-                return false; // Allow in wilderness
-            }
-
-            Faction ownerFaction = plugin.getFactionManager().getFaction(ownerId);
-            if (ownerFaction != null && !ownerFaction.isTntEnabled()) {
-                return true; // TNT is disabled in this territory
-            }
-
-            return false;
-        });
+        event.blockList().removeIf(this::isTntProtected);
     }
 
     // ==========================================
@@ -318,13 +307,18 @@ public class FactionListener implements Listener {
     // ==========================================
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onBlockExplode(BlockExplodeEvent event) {
-        event.blockList().removeIf(block -> {
-            UUID ownerId = plugin.getClaimManager().getLocationOwner(block.getLocation());
-            if (ownerId == null) return false;
+        event.blockList().removeIf(this::isTntProtected);
+    }
 
-            Faction ownerFaction = plugin.getFactionManager().getFaction(ownerId);
-            return ownerFaction != null && !ownerFaction.isTntEnabled();
-        });
+    // True if this block sits in a claim whose faction has TNT disabled, so
+    // explosions must not destroy it. Wilderness and unknown owners are allowed.
+    private boolean isTntProtected(Block block) {
+        UUID ownerId = plugin.getClaimManager().getLocationOwner(block.getLocation());
+        if (ownerId == null) {
+            return false;
+        }
+        Faction ownerFaction = plugin.getFactionManager().getFaction(ownerId);
+        return ownerFaction != null && !ownerFaction.isTntEnabled();
     }
 
     // ==========================================
@@ -332,32 +326,31 @@ public class FactionListener implements Listener {
     // ==========================================
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onPistonExtend(BlockPistonExtendEvent event) {
-        for (Block block : event.getBlocks()) {
-            Block target = block.getRelative(event.getDirection());
-            UUID sourceOwner = plugin.getClaimManager().getLocationOwner(block.getLocation());
-            UUID targetOwner = plugin.getClaimManager().getLocationOwner(target.getLocation());
-            if (sourceOwner == null || !sourceOwner.equals(targetOwner)) {
-                if (targetOwner != null) {
-                    event.setCancelled(true);
-                    return;
-                }
-            }
+        if (crossesClaimBoundary(event.getBlocks(), event.getDirection())) {
+            event.setCancelled(true);
         }
     }
 
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onPistonRetract(BlockPistonRetractEvent event) {
-        for (Block block : event.getBlocks()) {
-            Block target = block.getRelative(event.getDirection());
+        if (crossesClaimBoundary(event.getBlocks(), event.getDirection())) {
+            event.setCancelled(true);
+        }
+    }
+
+    // True if moving any of these blocks one step in `direction` would push or
+    // pull it across a claim boundary into claimed territory, which pistons must
+    // not do. Movement entirely within one claim, or out into wilderness, is fine.
+    private boolean crossesClaimBoundary(List<Block> blocks, BlockFace direction) {
+        for (Block block : blocks) {
+            Block target = block.getRelative(direction);
             UUID sourceOwner = plugin.getClaimManager().getLocationOwner(block.getLocation());
             UUID targetOwner = plugin.getClaimManager().getLocationOwner(target.getLocation());
-            if (sourceOwner == null || !sourceOwner.equals(targetOwner)) {
-                if (targetOwner != null) {
-                    event.setCancelled(true);
-                    return;
-                }
+            if (targetOwner != null && !targetOwner.equals(sourceOwner)) {
+                return true;
             }
         }
+        return false;
     }
 
     // ==========================================

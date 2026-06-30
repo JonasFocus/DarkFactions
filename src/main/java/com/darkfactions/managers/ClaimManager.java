@@ -11,6 +11,7 @@ import com.darkfactions.DarkFactions;
 import com.darkfactions.models.Faction;
 import com.darkfactions.storage.DataStore;
 import com.darkfactions.storage.SaveQueue;
+import com.darkfactions.utils.ClaimChangeSet;
 import com.darkfactions.utils.ClaimRules;
 import com.darkfactions.utils.ConfigManager;
 
@@ -30,7 +31,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 public class ClaimManager {
 
@@ -38,9 +38,10 @@ public class ClaimManager {
     private final Map<String, UUID> claimMap;
     private final Map<UUID, Integer> factionClaimCount;
     private final Set<UUID> bypassPlayers;
-    private final Set<String> pendingKeyDeletions;
-    private final Set<UUID> pendingFactionDeletions;
-    private final AtomicBoolean dirty;
+
+    // Pending claim writes/deletes awaiting the next async flush. Tracking deletes
+    // here is what lets unclaims actually reach the database.
+    private final ClaimChangeSet changes;
 
     // Cached config values
     private int maxClaimsPerFaction;
@@ -57,9 +58,7 @@ public class ClaimManager {
         this.claimMap = new ConcurrentHashMap<>();
         this.factionClaimCount = new ConcurrentHashMap<>();
         this.bypassPlayers = new HashSet<>();
-        this.pendingKeyDeletions = ConcurrentHashMap.newKeySet();
-        this.pendingFactionDeletions = ConcurrentHashMap.newKeySet();
-        this.dirty = new AtomicBoolean(false);
+        this.changes = new ClaimChangeSet();
         reloadConfig();
     }
 
@@ -178,7 +177,7 @@ public class ClaimManager {
             }
         }
 
-        dirty.set(true);
+        changes.recordUpsert(key);
         return ClaimResult.SUCCESS;
     }
 
@@ -207,8 +206,7 @@ public class ClaimManager {
                 }
             }
 
-            pendingKeyDeletions.add(key);
-            dirty.set(true);
+            changes.recordDelete(key);
             return true;
         }
 
@@ -220,14 +218,11 @@ public class ClaimManager {
         List<String> toRemove = getFactionClaims(factionId);
         for (String key : toRemove) {
             claimMap.remove(key);
+            changes.recordDelete(key);
         }
 
         factionClaimCount.remove(factionId);
 
-        if (!toRemove.isEmpty()) {
-            pendingFactionDeletions.add(factionId);
-            dirty.set(true);
-        }
         return toRemove.size();
     }
 
@@ -375,24 +370,25 @@ public class ClaimManager {
     }
 
     public void saveToStoreAsync(SaveQueue queue) {
-        boolean hasDeletions = !pendingKeyDeletions.isEmpty() || !pendingFactionDeletions.isEmpty();
-        if (!dirty.getAndSet(false) && !hasDeletions) return;
-
-        List<String> keysToDelete = hasDeletions ? new ArrayList<>(pendingKeyDeletions) : List.of();
-        List<UUID> factionsToDelete = hasDeletions ? new ArrayList<>(pendingFactionDeletions) : List.of();
-        pendingKeyDeletions.removeAll(keysToDelete);
-        pendingFactionDeletions.removeAll(factionsToDelete);
-
+        if (changes.isEmpty()) return;
+        ClaimChangeSet.Drain drain = changes.drain();
         queue.submit(() -> {
             DataStore store = queue.store();
-            for (String key : keysToDelete) {
-                store.deleteClaim(key);
+            // Both branches re-check the live claimMap rather than trusting the
+            // drained key, so the flush is order-independent across SaveQueue's
+            // worker threads: if a chunk is unclaimed then reclaimed across two
+            // flushes, whichever task runs last still leaves the database matching
+            // current ownership.
+            for (String key : drain.upserts()) {
+                UUID owner = claimMap.get(key);
+                if (owner != null) {
+                    store.saveClaim(key, owner);
+                }
             }
-            for (UUID factionId : factionsToDelete) {
-                store.deleteAllFactionClaims(factionId);
-            }
-            for (Map.Entry<String, UUID> e : claimMap.entrySet()) {
-                store.saveClaim(e.getKey(), e.getValue());
+            for (String key : drain.deletes()) {
+                if (!claimMap.containsKey(key)) {
+                    store.deleteClaim(key);
+                }
             }
         });
     }

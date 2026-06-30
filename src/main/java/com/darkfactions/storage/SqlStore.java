@@ -14,6 +14,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.logging.Level;
 
@@ -306,13 +307,21 @@ public class SqlStore implements DataStore {
                 }
                 try (PreparedStatement s = c.prepareStatement(
                         "INSERT INTO faction_relations (faction_id, target_id, relation) VALUES (?, ?, ?)")) {
-                    for (UUID aid : faction.getAllies()) {
+                    Set<UUID> allyIds = new HashSet<>(faction.getAllies());
+                    for (UUID aid : allyIds) {
                         bind(s, fid, aid.toString(), RELATION_ALLY);
                         s.addBatch();
                     }
                     for (UUID eid : faction.getEnemies()) {
-                        bind(s, fid, eid.toString(), RELATION_ENEMY);
-                        s.addBatch();
+                        // faction_relations is keyed by (faction_id, target_id), so a
+                        // target can hold only one relation. If the command layer left
+                        // a target in both sets, ally wins (matching the user's intent
+                        // and the old per-statement behavior) and the duplicate enemy
+                        // row is skipped so the batch and its transaction don't fail.
+                        if (!allyIds.contains(eid)) {
+                            bind(s, fid, eid.toString(), RELATION_ENEMY);
+                            s.addBatch();
+                        }
                     }
                     s.executeBatch();
                 }

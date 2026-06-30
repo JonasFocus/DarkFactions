@@ -4,6 +4,7 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Pure, dependency-free UUID/name index backing {@code PlayerNameCache}.
@@ -16,8 +17,8 @@ import java.util.UUID;
  */
 public final class NameIndex {
 
-    private final Map<UUID, String> byUuid = new HashMap<>();
-    private final Map<String, UUID> byName = new HashMap<>();
+    private final Map<UUID, String> byUuid = new ConcurrentHashMap<>();
+    private final Map<String, UUID> byName = new ConcurrentHashMap<>();
 
     private static String key(String name) {
         return name.toLowerCase(Locale.ROOT);

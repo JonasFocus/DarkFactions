@@ -56,6 +56,11 @@ public class FactionTabCompleter implements TabCompleter {
         "power", "elixir", "members", "land"
     );
 
+    // Shop items
+    private static final List<String> SHOP_OPTIONS = Arrays.asList(
+        "power", "maxpower"
+    );
+
     // ==========================================
     // Called when a player presses TAB
     // ==========================================
@@ -129,6 +134,14 @@ public class FactionTabCompleter implements TabCompleter {
             if (subCmd.equals("elixirbal") || subCmd.equals("bal")) {
                 return Arrays.asList("<faction>");
             }
+
+            if (subCmd.equals("shop")) {
+                return SHOP_OPTIONS;
+            }
+
+            if (subCmd.equals("transfer")) {
+                return Arrays.asList("<faction>");
+            }
         }
 
         // Third argument
@@ -140,6 +153,10 @@ public class FactionTabCompleter implements TabCompleter {
                     adminSub.equals("remove") || adminSub.equals("claim")) {
                     return Arrays.asList("<faction>");
                 }
+            }
+
+            if (args[0].equalsIgnoreCase("shop") || args[0].equalsIgnoreCase("transfer")) {
+                return Arrays.asList("<amount>");
             }
         }
 

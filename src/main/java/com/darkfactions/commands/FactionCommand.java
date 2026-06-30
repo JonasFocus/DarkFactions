@@ -811,6 +811,7 @@ public class FactionCommand implements CommandExecutor {
             int warmupTicks = delay * 20;
             BukkitTask task = plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
                 pendingWarmups.remove(player.getUniqueId());
+                if (!player.isOnline()) return;
                 homeCooldowns.put(player.getUniqueId(), System.currentTimeMillis());
                 player.teleport(home);
                 player.sendMessage(msg.success("Welcome to your faction home!"));

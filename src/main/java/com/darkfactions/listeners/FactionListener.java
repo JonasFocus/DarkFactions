@@ -522,6 +522,10 @@ public class FactionListener implements Listener {
 
         plugin.getPowerManager().getPlayerData(playerUuid).setLastLogoutTime(System.currentTimeMillis());
 
+        // Cancel any pending home-teleport warmup so it doesn't fire against
+        // a disconnected player.
+        plugin.getFactionCommand().cancelWarmup(playerUuid, false);
+
         // Combat tag check — punish combat loggers
         if (plugin.getCombatManager().handleQuit(playerUuid)) {
             if (plugin.getConfigManager().isCombatTagKillOnQuit()) {

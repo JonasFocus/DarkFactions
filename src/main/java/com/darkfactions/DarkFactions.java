@@ -52,7 +52,9 @@ public class DarkFactions extends JavaPlugin {
         this.configManager = new ConfigManager(this);
         this.messageUtils = new MessageUtils();
 
-        initDatabase();
+        if (!initDatabase()) {
+            return;
+        }
 
         this.combatManager = new CombatManager(this);
         this.factionManager = new FactionManager(this);
@@ -74,7 +76,7 @@ public class DarkFactions extends JavaPlugin {
         getLogger().info("DarkFactions has been enabled!");
     }
 
-    private void initDatabase() {
+    private boolean initDatabase() {
         try {
             DatabaseManager.Type dbType = configManager.getDatabaseType();
             String host = configManager.getDatabaseHost();
@@ -106,9 +108,11 @@ public class DarkFactions extends JavaPlugin {
             }
 
             getLogger().info("Database initialized (" + dbType + ")");
+            return true;
         } catch (Exception e) {
             getLogger().log(Level.SEVERE, "Failed to initialize database — disabling plugin", e);
             getServer().getPluginManager().disablePlugin(this);
+            return false;
         }
     }
 
@@ -149,8 +153,8 @@ public class DarkFactions extends JavaPlugin {
         }
 
         persistAll();
-        saveQueue.shutdown();
-        databaseManager.close();
+        if (saveQueue != null) saveQueue.shutdown();
+        if (databaseManager != null) databaseManager.close();
 
         instance = null;
         getLogger().info("DarkFactions has been disabled.");

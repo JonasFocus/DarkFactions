@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -31,6 +32,7 @@ public class FactionManager {
     private final Map<UUID, UUID> playerFactionMap;
     private final Map<UUID, List<UUID>> pendingInvites;
     private final Map<String, UUID> factionsByName;
+    private final Set<UUID> pendingDeletions;
     private final AtomicBoolean dirty;
 
     public FactionManager(DarkFactions plugin) {
@@ -39,6 +41,7 @@ public class FactionManager {
         this.playerFactionMap = new ConcurrentHashMap<>();
         this.pendingInvites = new ConcurrentHashMap<>();
         this.factionsByName = new ConcurrentHashMap<>();
+        this.pendingDeletions = ConcurrentHashMap.newKeySet();
         this.dirty = new AtomicBoolean(false);
     }
 
@@ -88,6 +91,7 @@ public class FactionManager {
         pendingInvites.values().removeIf(List::isEmpty);
         factions.remove(factionId);
         factionsByName.remove(nameKey(faction.getName()));
+        pendingDeletions.add(factionId);
 
         dirty.set(true);
         return true;
@@ -298,9 +302,17 @@ public class FactionManager {
     }
 
     public void saveToStoreAsync(SaveQueue queue) {
-        if (!dirty.getAndSet(false)) return;
+        boolean hasDeletions = !pendingDeletions.isEmpty();
+        if (!dirty.getAndSet(false) && !hasDeletions) return;
+
+        List<UUID> toDelete = hasDeletions ? new ArrayList<>(pendingDeletions) : List.of();
+        pendingDeletions.removeAll(toDelete);
+
         queue.submit(() -> {
             DataStore store = queue.store();
+            for (UUID factionId : toDelete) {
+                store.deleteFaction(factionId);
+            }
             for (Faction f : factions.values()) {
                 store.saveFaction(f);
             }

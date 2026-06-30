@@ -19,12 +19,12 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitTask;
 
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class FactionCommand implements CommandExecutor {
 
@@ -59,10 +59,10 @@ public class FactionCommand implements CommandExecutor {
     public FactionCommand(DarkFactions plugin) {
         this.plugin = plugin;
         this.msg = plugin.getMessageUtils();
-        this.autoClaimMap = new HashMap<>();
-        this.chatModeMap = new HashMap<>();
-        this.homeCooldowns = new HashMap<>();
-        this.pendingWarmups = new HashMap<>();
+        this.autoClaimMap = new ConcurrentHashMap<>();
+        this.chatModeMap = new ConcurrentHashMap<>();
+        this.homeCooldowns = new ConcurrentHashMap<>();
+        this.pendingWarmups = new ConcurrentHashMap<>();
     }
 
     // ==========================================

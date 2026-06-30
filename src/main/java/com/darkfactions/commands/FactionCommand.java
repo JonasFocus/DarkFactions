@@ -1855,6 +1855,7 @@ public class FactionCommand implements CommandExecutor {
                 try {
                     double powerAmount = Double.parseDouble(args[3]);
                     powerFaction.setPower(powerAmount);
+                    plugin.getFactionManager().markDirty();
                     player.sendMessage(msg.success("Set " + powerFaction.getName() + "'s power to " + powerAmount));
                 } catch (NumberFormatException e) {
                     player.sendMessage(msg.error("Invalid number!"));
@@ -1871,6 +1872,7 @@ public class FactionCommand implements CommandExecutor {
                 try {
                     double elixirAmount = Double.parseDouble(args[3]);
                     elixirFaction.setElixir(elixirAmount);
+                    plugin.getFactionManager().markDirty();
                     player.sendMessage(msg.success("Set " + elixirFaction.getName() + "'s elixir to " + elixirAmount));
                 } catch (NumberFormatException e) {
                     player.sendMessage(msg.error("Invalid number!"));
@@ -2016,6 +2018,7 @@ public class FactionCommand implements CommandExecutor {
                 try {
                     double amount = Double.parseDouble(args[3]);
                     powerFaction.setPower(amount);
+                    plugin.getFactionManager().markDirty();
                     sender.sendMessage(msg.success("Set " + powerFaction.getName() + "'s power to " + amount));
                 } catch (NumberFormatException e) {
                     sender.sendMessage(msg.error("Invalid number!"));
@@ -2034,6 +2037,7 @@ public class FactionCommand implements CommandExecutor {
                 try {
                     double amount = Double.parseDouble(args[3]);
                     elixirFaction.setElixir(amount);
+                    plugin.getFactionManager().markDirty();
                     sender.sendMessage(msg.success("Set " + elixirFaction.getName() + "'s elixir to " + amount));
                 } catch (NumberFormatException e) {
                     sender.sendMessage(msg.error("Invalid number!"));

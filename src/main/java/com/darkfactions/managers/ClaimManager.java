@@ -38,6 +38,8 @@ public class ClaimManager {
     private final Map<String, UUID> claimMap;
     private final Map<UUID, Integer> factionClaimCount;
     private final Set<UUID> bypassPlayers;
+    private final Set<String> pendingKeyDeletions;
+    private final Set<UUID> pendingFactionDeletions;
     private final AtomicBoolean dirty;
 
     // Cached config values
@@ -55,6 +57,8 @@ public class ClaimManager {
         this.claimMap = new ConcurrentHashMap<>();
         this.factionClaimCount = new ConcurrentHashMap<>();
         this.bypassPlayers = new HashSet<>();
+        this.pendingKeyDeletions = ConcurrentHashMap.newKeySet();
+        this.pendingFactionDeletions = ConcurrentHashMap.newKeySet();
         this.dirty = new AtomicBoolean(false);
         reloadConfig();
     }
@@ -199,6 +203,7 @@ public class ClaimManager {
                 }
             }
 
+            pendingKeyDeletions.add(key);
             dirty.set(true);
             return true;
         }
@@ -216,6 +221,7 @@ public class ClaimManager {
         factionClaimCount.remove(factionId);
 
         if (!toRemove.isEmpty()) {
+            pendingFactionDeletions.add(factionId);
             dirty.set(true);
         }
         return toRemove.size();
@@ -365,9 +371,22 @@ public class ClaimManager {
     }
 
     public void saveToStoreAsync(SaveQueue queue) {
-        if (!dirty.getAndSet(false)) return;
+        boolean hasDeletions = !pendingKeyDeletions.isEmpty() || !pendingFactionDeletions.isEmpty();
+        if (!dirty.getAndSet(false) && !hasDeletions) return;
+
+        List<String> keysToDelete = hasDeletions ? new ArrayList<>(pendingKeyDeletions) : List.of();
+        List<UUID> factionsToDelete = hasDeletions ? new ArrayList<>(pendingFactionDeletions) : List.of();
+        pendingKeyDeletions.removeAll(keysToDelete);
+        pendingFactionDeletions.removeAll(factionsToDelete);
+
         queue.submit(() -> {
             DataStore store = queue.store();
+            for (String key : keysToDelete) {
+                store.deleteClaim(key);
+            }
+            for (UUID factionId : factionsToDelete) {
+                store.deleteAllFactionClaims(factionId);
+            }
             for (Map.Entry<String, UUID> e : claimMap.entrySet()) {
                 store.saveClaim(e.getKey(), e.getValue());
             }

@@ -370,6 +370,11 @@ public class ClaimManager {
         ClaimChangeSet.Drain drain = changes.drain();
         queue.submit(() -> {
             DataStore store = queue.store();
+            // Both branches re-check the live claimMap rather than trusting the
+            // drained key, so the flush is order-independent across SaveQueue's
+            // worker threads: if a chunk is unclaimed then reclaimed across two
+            // flushes, whichever task runs last still leaves the database matching
+            // current ownership.
             for (String key : drain.upserts()) {
                 UUID owner = claimMap.get(key);
                 if (owner != null) {
@@ -377,7 +382,9 @@ public class ClaimManager {
                 }
             }
             for (String key : drain.deletes()) {
-                store.deleteClaim(key);
+                if (!claimMap.containsKey(key)) {
+                    store.deleteClaim(key);
+                }
             }
         });
     }

@@ -12,7 +12,10 @@ import com.darkfactions.storage.DataStore;
 import com.darkfactions.storage.SaveQueue;
 import com.darkfactions.utils.ConfigManager;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -21,6 +24,7 @@ public class ElixirManager {
 
     private final DarkFactions plugin;
     private final Map<UUID, Double> pendingElixir;
+    private final Set<UUID> pendingElixirDeletions;
     private final AtomicBoolean pendingDirty;
 
     // Cached config values
@@ -36,6 +40,7 @@ public class ElixirManager {
     public ElixirManager(DarkFactions plugin) {
         this.plugin = plugin;
         this.pendingElixir = new ConcurrentHashMap<>();
+        this.pendingElixirDeletions = ConcurrentHashMap.newKeySet();
         this.pendingDirty = new AtomicBoolean(false);
         reloadConfig();
     }
@@ -134,6 +139,7 @@ public class ElixirManager {
 
         double amount = pendingElixir.remove(playerUuid);
         faction.addElixir(amount);
+        pendingElixirDeletions.add(playerUuid);
         pendingDirty.set(true);
         return true;
     }
@@ -190,9 +196,17 @@ public class ElixirManager {
     }
 
     public void saveToStoreAsync(SaveQueue queue) {
-        if (!pendingDirty.getAndSet(false)) return;
+        boolean hasDeletions = !pendingElixirDeletions.isEmpty();
+        if (!pendingDirty.getAndSet(false) && !hasDeletions) return;
+
+        List<UUID> toDelete = hasDeletions ? new ArrayList<>(pendingElixirDeletions) : List.of();
+        pendingElixirDeletions.removeAll(toDelete);
+
         queue.submit(() -> {
             DataStore store = queue.store();
+            for (UUID playerUuid : toDelete) {
+                store.deletePendingElixir(playerUuid);
+            }
             for (Map.Entry<UUID, Double> e : pendingElixir.entrySet()) {
                 store.savePendingElixir(e.getKey(), e.getValue());
             }

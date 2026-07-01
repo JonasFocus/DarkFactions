@@ -25,7 +25,6 @@ import org.bukkit.entity.Player;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -57,7 +56,7 @@ public class ClaimManager {
         this.plugin = plugin;
         this.claimMap = new ConcurrentHashMap<>();
         this.factionClaimCount = new ConcurrentHashMap<>();
-        this.bypassPlayers = new HashSet<>();
+        this.bypassPlayers = ConcurrentHashMap.newKeySet();
         this.changes = new ClaimChangeSet();
         reloadConfig();
     }

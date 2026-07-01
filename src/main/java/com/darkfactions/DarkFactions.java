@@ -9,6 +9,7 @@ import com.darkfactions.managers.ElixirManager;
 import com.darkfactions.managers.FactionManager;
 import com.darkfactions.managers.PlayerNameCache;
 import com.darkfactions.managers.PowerManager;
+import com.darkfactions.managers.Reloadable;
 import com.darkfactions.storage.DatabaseManager;
 import com.darkfactions.storage.DataStore;
 import com.darkfactions.storage.SaveQueue;
@@ -18,6 +19,7 @@ import com.darkfactions.utils.MessageUtils;
 
 import org.bukkit.plugin.java.JavaPlugin;
 
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 
@@ -37,6 +39,7 @@ public class DarkFactions extends JavaPlugin {
     private PlayerNameCache playerNameCache;
     private ConfigManager configManager;
     private MessageUtils messageUtils;
+    private List<Reloadable> reloadables;
 
     private FactionCommand factionCommand;
 
@@ -62,6 +65,7 @@ public class DarkFactions extends JavaPlugin {
         this.elixirManager = new ElixirManager(this);
         this.claimManager = new ClaimManager(this);
         this.playerNameCache = new PlayerNameCache(this);
+        this.reloadables = List.of(powerManager, elixirManager, claimManager);
 
         this.factionCommand = new FactionCommand(this);
         var command = getCommand("faction");
@@ -173,6 +177,7 @@ public class DarkFactions extends JavaPlugin {
     public ElixirManager getElixirManager() { return elixirManager; }
     public ClaimManager getClaimManager() { return claimManager; }
     public PlayerNameCache getPlayerNameCache() { return playerNameCache; }
+    public List<Reloadable> getReloadables() { return reloadables; }
     public ConfigManager getConfigManager() { return configManager; }
     public MessageUtils getMessageUtils() { return messageUtils; }
     public FactionCommand getFactionCommand() { return factionCommand; }

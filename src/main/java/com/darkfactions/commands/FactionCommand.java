@@ -4,6 +4,7 @@ package com.darkfactions.commands;
 
 import com.darkfactions.DarkFactions;
 import com.darkfactions.managers.ClaimResult;
+import com.darkfactions.managers.Reloadable;
 import com.darkfactions.models.Faction;
 import com.darkfactions.utils.FactionListFormatter;
 import com.darkfactions.utils.FactionNameValidator;
@@ -2036,9 +2037,9 @@ public class FactionCommand implements CommandExecutor {
 
     private void reloadAllConfigs() {
         plugin.getConfigManager().reload();
-        plugin.getPowerManager().reloadConfig();
-        plugin.getElixirManager().reloadConfig();
-        plugin.getClaimManager().reloadConfig();
+        for (Reloadable reloadable : plugin.getReloadables()) {
+            reloadable.reloadConfig();
+        }
     }
 
     // ==========================================

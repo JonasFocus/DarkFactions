@@ -32,7 +32,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class ClaimManager {
+public class ClaimManager implements Reloadable {
 
     private final DarkFactions plugin;
     private final Map<String, UUID> claimMap;
@@ -65,6 +65,7 @@ public class ClaimManager {
     // ==========================================
     // Load ALL values from ConfigManager
     // ==========================================
+    @Override
     public void reloadConfig() {
         ConfigManager cfg = plugin.getConfigManager();
         this.maxClaimsPerFaction = cfg.getMaxClaimsPerFaction();

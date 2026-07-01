@@ -20,7 +20,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public class ElixirManager {
+public class ElixirManager implements Reloadable {
 
     private final DarkFactions plugin;
     private final Map<UUID, Double> pendingElixir;
@@ -48,6 +48,7 @@ public class ElixirManager {
     // ==========================================
     // Load ALL values from ConfigManager
     // ==========================================
+    @Override
     public void reloadConfig() {
         ConfigManager cfg = plugin.getConfigManager();
         this.perEnemyKill = cfg.getElixirPerEnemyKill();

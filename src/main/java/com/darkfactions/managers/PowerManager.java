@@ -23,7 +23,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public class PowerManager {
+public class PowerManager implements Reloadable {
 
     private final DarkFactions plugin;
     private final Map<UUID, FactionPlayer> playerDataMap;
@@ -59,6 +59,7 @@ public class PowerManager {
     // ==========================================
     // Load ALL values from ConfigManager
     // ==========================================
+    @Override
     public void reloadConfig() {
         ConfigManager cfg = plugin.getConfigManager();
         this.defaultPlayerPower = cfg.getDefaultPlayerPower();

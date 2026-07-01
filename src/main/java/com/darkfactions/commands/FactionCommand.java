@@ -1764,52 +1764,13 @@ public class FactionCommand implements CommandExecutor {
                 return handleList(player);
 
             case "power":
-                if (!requireArgs(player, args, 4, "/f admin power <faction> <amount>")) return true;
-                Faction powerFaction = plugin.getFactionManager().getFactionByName(args[2]);
-                if (powerFaction == null) {
-                    player.sendMessage(msg.error("Faction not found!"));
-                    return true;
-                }
-                try {
-                    double powerAmount = Double.parseDouble(args[3]);
-                    powerFaction.setPower(powerAmount);
-                    plugin.getFactionManager().markDirty();
-                    player.sendMessage(msg.success("Set " + powerFaction.getName() + "'s power to " + powerAmount));
-                } catch (NumberFormatException e) {
-                    player.sendMessage(msg.error("Invalid number!"));
-                }
-                return true;
+                return handleAdminPower(player, args);
 
             case "elixir":
-                if (!requireArgs(player, args, 4, "/f admin elixir <faction> <amount>")) return true;
-                Faction elixirFaction = plugin.getFactionManager().getFactionByName(args[2]);
-                if (elixirFaction == null) {
-                    player.sendMessage(msg.error("Faction not found!"));
-                    return true;
-                }
-                try {
-                    double elixirAmount = Double.parseDouble(args[3]);
-                    elixirFaction.setElixir(elixirAmount);
-                    plugin.getFactionManager().markDirty();
-                    player.sendMessage(msg.success("Set " + elixirFaction.getName() + "'s elixir to " + elixirAmount));
-                } catch (NumberFormatException e) {
-                    player.sendMessage(msg.error("Invalid number!"));
-                }
-                return true;
+                return handleAdminElixir(player, args);
 
             case "remove":
-                if (!requireArgs(player, args, 3, "/f admin remove <faction>")) return true;
-                Faction removeFaction = plugin.getFactionManager().getFactionByName(args[2]);
-                if (removeFaction == null) {
-                    player.sendMessage(msg.error("Faction not found!"));
-                    return true;
-                }
-                String removedName = removeFaction.getName();
-
-                // deleteFaction() already removes this faction's claims internally.
-                plugin.getFactionManager().deleteFaction(removeFaction.getFactionId());
-                player.sendMessage(msg.success("Force removed faction: " + removedName));
-                return true;
+                return handleAdminRemove(player, args);
 
             case "claim":
                 if (!requireArgs(player, args, 3, "/f admin claim <faction>")) return true;
@@ -1844,24 +1805,66 @@ public class FactionCommand implements CommandExecutor {
         }
     }
 
+    // Shared by handleAdmin (player) and handleAdminConsole (console) so the
+    // two entry points can't drift apart.
+    private boolean handleAdminPower(CommandSender sender, String[] args) {
+        if (!requireArgs(sender, args, 4, "/f admin power <faction> <amount>")) return true;
+        Faction powerFaction = plugin.getFactionManager().getFactionByName(args[2]);
+        if (powerFaction == null) {
+            sender.sendMessage(msg.error("Faction not found!"));
+            return true;
+        }
+        try {
+            double amount = Double.parseDouble(args[3]);
+            powerFaction.setPower(amount);
+            plugin.getFactionManager().markDirty();
+            sender.sendMessage(msg.success("Set " + powerFaction.getName() + "'s power to " + amount));
+        } catch (NumberFormatException e) {
+            sender.sendMessage(msg.error("Invalid number!"));
+        }
+        return true;
+    }
+
+    private boolean handleAdminElixir(CommandSender sender, String[] args) {
+        if (!requireArgs(sender, args, 4, "/f admin elixir <faction> <amount>")) return true;
+        Faction elixirFaction = plugin.getFactionManager().getFactionByName(args[2]);
+        if (elixirFaction == null) {
+            sender.sendMessage(msg.error("Faction not found!"));
+            return true;
+        }
+        try {
+            double amount = Double.parseDouble(args[3]);
+            elixirFaction.setElixir(amount);
+            plugin.getFactionManager().markDirty();
+            sender.sendMessage(msg.success("Set " + elixirFaction.getName() + "'s elixir to " + amount));
+        } catch (NumberFormatException e) {
+            sender.sendMessage(msg.error("Invalid number!"));
+        }
+        return true;
+    }
+
+    private boolean handleAdminRemove(CommandSender sender, String[] args) {
+        if (!requireArgs(sender, args, 3, "/f admin remove <faction>")) return true;
+        Faction removeFaction = plugin.getFactionManager().getFactionByName(args[2]);
+        if (removeFaction == null) {
+            sender.sendMessage(msg.error("Faction not found!"));
+            return true;
+        }
+        String removedName = removeFaction.getName();
+
+        // deleteFaction() already removes this faction's claims internally.
+        plugin.getFactionManager().deleteFaction(removeFaction.getFactionId());
+        sender.sendMessage(msg.success("Force removed faction: " + removedName));
+        return true;
+    }
+
     // ==========================================
     // Console handler — allows admin and read-only commands from server console
     // ==========================================
     private boolean handleConsole(CommandSender sender, String subCommand, String[] args) {
         switch (subCommand) {
             case "list":
-                List<Faction> factions = plugin.getFactionManager().getAllFactions();
-                if (factions.isEmpty()) {
-                    sender.sendMessage(msg.error("No factions exist yet."));
-                    return true;
-                }
-                sender.sendMessage(msg.header("Factions (" + factions.size() + ")"));
-                for (Faction f : factions) {
-                    sender.sendMessage(msg.info(FactionListFormatter.listRow(
-                            "", f.getName(), f.getMemberCount(),
-                            f.getPower(), plugin.getClaimManager().getClaimCount(f.getFactionId()))));
-                }
-                return true;
+                return handleListConsole(sender);
 
             case "top":
                 return handleConsoleTop(sender, args);
@@ -1923,54 +1926,11 @@ public class FactionCommand implements CommandExecutor {
             case "list":
                 return handleListConsole(sender);
             case "power":
-                if (args.length < 4) {
-                    sender.sendMessage(msg.error("Usage: /f admin power <faction> <amount>"));
-                    return true;
-                }
-                Faction powerFaction = plugin.getFactionManager().getFactionByName(args[2]);
-                if (powerFaction == null) {
-                    sender.sendMessage(msg.error("Faction not found!"));
-                    return true;
-                }
-                try {
-                    double amount = Double.parseDouble(args[3]);
-                    powerFaction.setPower(amount);
-                    plugin.getFactionManager().markDirty();
-                    sender.sendMessage(msg.success("Set " + powerFaction.getName() + "'s power to " + amount));
-                } catch (NumberFormatException e) {
-                    sender.sendMessage(msg.error("Invalid number!"));
-                }
-                return true;
+                return handleAdminPower(sender, args);
             case "elixir":
-                if (args.length < 4) {
-                    sender.sendMessage(msg.error("Usage: /f admin elixir <faction> <amount>"));
-                    return true;
-                }
-                Faction elixirFaction = plugin.getFactionManager().getFactionByName(args[2]);
-                if (elixirFaction == null) {
-                    sender.sendMessage(msg.error("Faction not found!"));
-                    return true;
-                }
-                try {
-                    double amount = Double.parseDouble(args[3]);
-                    elixirFaction.setElixir(amount);
-                    plugin.getFactionManager().markDirty();
-                    sender.sendMessage(msg.success("Set " + elixirFaction.getName() + "'s elixir to " + amount));
-                } catch (NumberFormatException e) {
-                    sender.sendMessage(msg.error("Invalid number!"));
-                }
-                return true;
+                return handleAdminElixir(sender, args);
             case "remove":
-                Faction removeFaction = plugin.getFactionManager().getFactionByName(args[2]);
-                if (removeFaction == null) {
-                    sender.sendMessage(msg.error("Faction not found!"));
-                    return true;
-                }
-                String removedName = removeFaction.getName();
-                plugin.getClaimManager().removeAllFactionClaims(removeFaction.getFactionId());
-                plugin.getFactionManager().deleteFaction(removeFaction.getFactionId());
-                sender.sendMessage(msg.success("Force removed faction: " + removedName));
-                return true;
+                return handleAdminRemove(sender, args);
             default:
                 sender.sendMessage(msg.error("Unknown admin subcommand. Usage: /f admin <list|power|elixir|remove> [args]"));
                 return true;
@@ -2057,9 +2017,9 @@ public class FactionCommand implements CommandExecutor {
 
     // Ensure at least `min` arguments were given, else show the usage string.
     // Returns true when the args are sufficient.
-    private boolean requireArgs(Player player, String[] args, int min, String usage) {
+    private boolean requireArgs(CommandSender sender, String[] args, int min, String usage) {
         if (args.length < min) {
-            player.sendMessage(msg.error("Usage: " + usage));
+            sender.sendMessage(msg.error("Usage: " + usage));
             return false;
         }
         return true;

@@ -18,7 +18,6 @@ import com.darkfactions.utils.MessageUtils;
 
 import org.bukkit.plugin.java.JavaPlugin;
 
-import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 
 public class DarkFactions extends JavaPlugin {
@@ -94,18 +93,7 @@ public class DarkFactions extends JavaPlugin {
                 dataStore.setSchemaVersion(1);
             }
 
-            int saveInterval = configManager.getDatabaseSaveInterval();
             this.saveQueue = new SaveQueue(dataStore, 2);
-
-            if (saveInterval > 0) {
-                saveQueue.scheduleAtFixedRate(() -> {
-                    try {
-                        persistAll();
-                    } catch (Exception e) {
-                        getLogger().log(Level.WARNING, "Auto-save failed", e);
-                    }
-                }, saveInterval, saveInterval, TimeUnit.SECONDS);
-            }
 
             getLogger().info("Database initialized (" + dbType + ")");
             return true;
@@ -122,8 +110,12 @@ public class DarkFactions extends JavaPlugin {
 
         long ticks = 20L * intervalSeconds;
         autoSaveTaskId = getServer().getScheduler().runTaskTimer(this, () -> {
-            persistAll();
-            getLogger().info("Auto-saved DarkFactions data.");
+            try {
+                persistAll();
+                getLogger().info("Auto-saved DarkFactions data.");
+            } catch (Exception e) {
+                getLogger().log(Level.WARNING, "Auto-save failed", e);
+            }
         }, ticks, ticks).getTaskId();
     }
 

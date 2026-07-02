@@ -22,10 +22,6 @@ public class SaveQueue {
         executor.submit(task);
     }
 
-    public void scheduleAtFixedRate(Runnable task, long initialDelay, long period, TimeUnit unit) {
-        executor.scheduleAtFixedRate(task, initialDelay, period, unit);
-    }
-
     public DataStore store() {
         return store;
     }

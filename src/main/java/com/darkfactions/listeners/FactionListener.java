@@ -14,6 +14,7 @@ import com.darkfactions.utils.ChatFormatter;
 import com.darkfactions.utils.TerritoryMessageFormatter;
 
 import org.bukkit.Chunk;
+import org.bukkit.GameMode;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
@@ -69,7 +70,7 @@ public class FactionListener implements Listener {
     // ==========================================
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onBlockBreak(BlockBreakEvent event) {
-        Faction denier = protectionDenier(event.getPlayer(), event.getBlock());
+        Faction denier = protectionDenier(event.getPlayer(), event.getBlock(), ClaimAction.BREAK);
         if (denier != null) {
             event.setCancelled(true);
             event.getPlayer().sendMessage(plugin.getMessageUtils().error(
@@ -83,7 +84,7 @@ public class FactionListener implements Listener {
     // ==========================================
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onBlockPlace(BlockPlaceEvent event) {
-        Faction denier = protectionDenier(event.getPlayer(), event.getBlock());
+        Faction denier = protectionDenier(event.getPlayer(), event.getBlock(), ClaimAction.PLACE);
         if (denier != null) {
             event.setCancelled(true);
             event.getPlayer().sendMessage(plugin.getMessageUtils().error(
@@ -110,7 +111,7 @@ public class FactionListener implements Listener {
             return;
         }
 
-        Faction denier = protectionDenier(event.getPlayer(), block);
+        Faction denier = protectionDenier(event.getPlayer(), block, ClaimAction.INTERACT);
         if (denier != null) {
             event.setCancelled(true);
             event.getPlayer().sendMessage(plugin.getMessageUtils().error(
@@ -119,13 +120,21 @@ public class FactionListener implements Listener {
         }
     }
 
+    // The kind of claim action being checked, so allowing allies can be
+    // decided per action instead of always allowing every ally action.
+    private enum ClaimAction { BREAK, PLACE, INTERACT }
+
     // ==========================================
     // Shared territory-protection check.
     // Returns the owning faction whose claim should block this player's action,
     // or null when the action is allowed (wilderness, admin bypass, own land,
-    // or allied land).
+    // or allied land permitted by config for this action type).
     // ==========================================
-    private Faction protectionDenier(Player player, Block block) {
+    private Faction protectionDenier(Player player, Block block, ClaimAction action) {
+        if (!plugin.getConfigManager().isProtectionEnabled()) {
+            return null;
+        }
+
         UUID ownerId = plugin.getClaimManager().getLocationOwner(block.getLocation());
         if (ownerId == null) {
             return null; // Wilderness - anything goes
@@ -145,12 +154,23 @@ public class FactionListener implements Listener {
             return ownerFaction;
         }
 
-        // Allow the owning faction and its allies.
-        if (playerFaction.getFactionId().equals(ownerId) || ownerFaction.isAlly(playerFaction.getFactionId())) {
+        if (playerFaction.getFactionId().equals(ownerId)) {
+            return null;
+        }
+
+        if (ownerFaction.isAlly(playerFaction.getFactionId()) && isAllyActionAllowed(action)) {
             return null;
         }
 
         return ownerFaction;
+    }
+
+    private boolean isAllyActionAllowed(ClaimAction action) {
+        return switch (action) {
+            case BREAK -> plugin.getConfigManager().isAlliesCanBreak();
+            case PLACE -> plugin.getConfigManager().isAlliesCanPlace();
+            case INTERACT -> plugin.getConfigManager().isAlliesCanInteract();
+        };
     }
 
     // ==========================================
@@ -310,11 +330,18 @@ public class FactionListener implements Listener {
         event.blockList().removeIf(this::isTntProtected);
     }
 
-    // True if this block sits in a claim whose faction has TNT disabled, so
-    // explosions must not destroy it. Wilderness and unknown owners are allowed.
+    // True if this block must survive the explosion: either it's in the
+    // wilderness and wilderness damage is disabled, or it's in a claim where
+    // explosions are disabled or the owning faction has turned TNT off.
     private boolean isTntProtected(Block block) {
         UUID ownerId = plugin.getClaimManager().getLocationOwner(block.getLocation());
         if (ownerId == null) {
+            return !plugin.getConfigManager().isExplosionDamageWilderness();
+        }
+        if (!plugin.getConfigManager().isExplosionsInClaims()) {
+            return true;
+        }
+        if (!plugin.getConfigManager().isRespectFactionTntToggle()) {
             return false;
         }
         Faction ownerFaction = plugin.getFactionManager().getFaction(ownerId);
@@ -448,7 +475,8 @@ public class FactionListener implements Listener {
         // ==========================================
         // Flight check - disable flight when leaving own territory
         // ==========================================
-        if (player.getAllowFlight() && plugin.getConfigManager().isFlightAutoDisableOnExit()) {
+        if (player.getAllowFlight() && plugin.getConfigManager().isFlightAutoDisableOnExit()
+                && player.getGameMode() != GameMode.CREATIVE && player.getGameMode() != GameMode.SPECTATOR) {
             // Disable flight if combat tagged and config says so
             if (plugin.getConfigManager().isCombatTagPreventFly() && plugin.getCombatManager().isTagged(player.getUniqueId())) {
                 player.setAllowFlight(false);

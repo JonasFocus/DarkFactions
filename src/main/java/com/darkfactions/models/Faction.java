@@ -41,10 +41,16 @@ public class Faction {
     private float homeYaw;
     private float homePitch;
 
-    // How much power this faction has total
-    private double power;
+    /**
+     * Admin/shop bonus power added on top of the sum of member player power.
+     * Persisted as {@code bonus_power}; the legacy {@code power} column is no longer read.
+     */
+    private double bonusPower;
 
-    // Maximum power this faction can have
+    /**
+     * Bonus max power from shop upgrades, added on top of the sum of member max player power.
+     * Persisted as {@code max_power}.
+     */
     private double maxPower;
 
     // When this faction was created, in epoch milliseconds (System.currentTimeMillis()).
@@ -87,8 +93,8 @@ public class Faction {
         this.officers = newMemberSet();
         this.enemies = newMemberSet();
         this.allies = newMemberSet();
-        this.power = 10.0; // Starting power for a new faction
-        this.maxPower = 50.0; // Max power cap
+        this.bonusPower = 0.0;
+        this.maxPower = 0.0;
         this.creationTime = System.currentTimeMillis();
         this.elixir = 0.0; // Start with 0 elixir
         this.open = false; // Invite-only by default
@@ -184,17 +190,41 @@ public class Faction {
     }
 
     // ==========================================
-    // Power Methods
+    // Bonus Power Methods (admin / shop / raid rewards)
     // ==========================================
 
-    // Add power to the faction
-    public void addPower(double amount) {
-        this.power = Math.min(this.power + amount, this.maxPower);
+    public void addBonusPower(double amount) {
+        this.bonusPower += amount;
     }
 
-    // Remove power from the faction
-    public void removePower(double amount) {
-        this.power = Math.max(this.power - amount, 0.0);
+    public void setBonusPower(double bonusPower) {
+        this.bonusPower = bonusPower;
+    }
+
+    public double getBonusPower() {
+        return bonusPower;
+    }
+
+    /** @deprecated Use {@link #addBonusPower(double)} — kept for shop integration. */
+    @Deprecated
+    public void addPower(double amount) {
+        addBonusPower(amount);
+    }
+
+    /** @deprecated Use {@link #setBonusPower(double)}. */
+    @Deprecated
+    public void setPower(double power) {
+        setBonusPower(power);
+    }
+
+    /** @deprecated Bonus power only; use PowerManager effective power for display and raidable checks. */
+    @Deprecated
+    public double getPower() {
+        return bonusPower;
+    }
+
+    public void addBonusMaxPower(double amount) {
+        this.maxPower += amount;
     }
 
     // ==========================================
@@ -405,14 +435,6 @@ public class Faction {
 
     public void setHomePitch(float homePitch) {
         this.homePitch = homePitch;
-    }
-
-    public double getPower() {
-        return power;
-    }
-
-    public void setPower(double power) {
-        this.power = power;
     }
 
     public double getMaxPower() {

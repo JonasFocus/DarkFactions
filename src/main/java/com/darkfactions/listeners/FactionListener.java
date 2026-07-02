@@ -11,6 +11,7 @@ import com.darkfactions.commands.FactionCommand;
 import com.darkfactions.managers.ClaimResult;
 import com.darkfactions.models.Faction;
 import com.darkfactions.utils.ChatFormatter;
+import com.darkfactions.utils.ProtectionRules;
 import com.darkfactions.utils.TerritoryMessageFormatter;
 
 import org.bukkit.Chunk;
@@ -28,6 +29,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
+import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
@@ -70,7 +72,7 @@ public class FactionListener implements Listener {
     // ==========================================
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onBlockBreak(BlockBreakEvent event) {
-        Faction denier = protectionDenier(event.getPlayer(), event.getBlock(), ClaimAction.BREAK);
+        Faction denier = protectionDenier(event.getPlayer(), event.getBlock(), ProtectionRules.Action.BREAK);
         if (denier != null) {
             event.setCancelled(true);
             event.getPlayer().sendMessage(plugin.getMessageUtils().error(
@@ -84,7 +86,7 @@ public class FactionListener implements Listener {
     // ==========================================
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onBlockPlace(BlockPlaceEvent event) {
-        Faction denier = protectionDenier(event.getPlayer(), event.getBlock(), ClaimAction.PLACE);
+        Faction denier = protectionDenier(event.getPlayer(), event.getBlock(), ProtectionRules.Action.PLACE);
         if (denier != null) {
             event.setCancelled(true);
             event.getPlayer().sendMessage(plugin.getMessageUtils().error(
@@ -111,7 +113,7 @@ public class FactionListener implements Listener {
             return;
         }
 
-        Faction denier = protectionDenier(event.getPlayer(), block, ClaimAction.INTERACT);
+        Faction denier = protectionDenier(event.getPlayer(), block, ProtectionRules.Action.INTERACT);
         if (denier != null) {
             event.setCancelled(true);
             event.getPlayer().sendMessage(plugin.getMessageUtils().error(
@@ -120,18 +122,15 @@ public class FactionListener implements Listener {
         }
     }
 
-    // The kind of claim action being checked, so allowing allies can be
-    // decided per action instead of always allowing every ally action.
-    private enum ClaimAction { BREAK, PLACE, INTERACT }
-
     // ==========================================
     // Shared territory-protection check.
     // Returns the owning faction whose claim should block this player's action,
     // or null when the action is allowed (wilderness, admin bypass, own land,
     // or allied land permitted by config for this action type).
     // ==========================================
-    private Faction protectionDenier(Player player, Block block, ClaimAction action) {
-        if (!plugin.getConfigManager().isProtectionEnabled()) {
+    private Faction protectionDenier(Player player, Block block, ProtectionRules.Action action) {
+        var cfg = plugin.getConfigManager();
+        if (!cfg.isProtectionEnabled()) {
             return null;
         }
 
@@ -150,27 +149,28 @@ public class FactionListener implements Listener {
         }
 
         Faction playerFaction = plugin.getFactionManager().getPlayerFaction(player.getUniqueId());
-        if (playerFaction == null) {
-            return ownerFaction;
-        }
+        UUID playerFactionId = playerFaction != null ? playerFaction.getFactionId() : null;
+        boolean sameFaction = playerFactionId != null && playerFactionId.equals(ownerId);
+        boolean ally = playerFaction != null && ownerFaction.isAlly(playerFaction.getFactionId());
+        boolean enemy = playerFaction != null && ownerFaction.isEnemy(playerFaction.getFactionId());
+        boolean ownerRaidable = plugin.getPowerManager().isFactionRaidable(ownerId);
 
-        if (playerFaction.getFactionId().equals(ownerId)) {
-            return null;
-        }
+        boolean deny = ProtectionRules.shouldDeny(
+                true,
+                ownerId,
+                playerFactionId,
+                sameFaction,
+                ally,
+                enemy,
+                ownerRaidable,
+                cfg.isRaidableBypass(),
+                cfg.isAlliesCanBreak(),
+                cfg.isAlliesCanPlace(),
+                cfg.isAlliesCanInteract(),
+                action
+        );
 
-        if (ownerFaction.isAlly(playerFaction.getFactionId()) && isAllyActionAllowed(action)) {
-            return null;
-        }
-
-        return ownerFaction;
-    }
-
-    private boolean isAllyActionAllowed(ClaimAction action) {
-        return switch (action) {
-            case BREAK -> plugin.getConfigManager().isAlliesCanBreak();
-            case PLACE -> plugin.getConfigManager().isAlliesCanPlace();
-            case INTERACT -> plugin.getConfigManager().isAlliesCanInteract();
-        };
+        return deny ? ownerFaction : null;
     }
 
     // ==========================================
@@ -182,7 +182,7 @@ public class FactionListener implements Listener {
                 faction.getName(),
                 plugin.getPlayerNameCache().getPlayerName(faction.getLeaderUuid()),
                 faction.getMemberCount(),
-                faction.getPower(),
+                plugin.getPowerManager().getEffectiveFactionPower(faction.getFactionId()),
                 faction.getElixir());
     }
 
@@ -215,7 +215,7 @@ public class FactionListener implements Listener {
     // Handles friendly fire toggle and territory PvP
     // ==========================================
     @EventHandler(priority = EventPriority.HIGHEST)
-    public void onEntityDamage(EntityDamageByEntityEvent event) {
+    public void onEntityDamageByEntity(EntityDamageByEntityEvent event) {
         if (!(event.getEntity() instanceof Player victim)) {
             return;
         }
@@ -293,6 +293,18 @@ public class FactionListener implements Listener {
 
         // Cancel any pending home teleport for the victim
         plugin.getFactionCommand().cancelWarmup(victim.getUniqueId(), true);
+    }
+
+    // Cancel home warmup on any damage (environmental, fall, fire, etc.) when configured.
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onEntityDamage(EntityDamageEvent event) {
+        if (!(event.getEntity() instanceof Player player)) {
+            return;
+        }
+        if (!plugin.getConfigManager().isHomeCancelOnDamage()) {
+            return;
+        }
+        plugin.getFactionCommand().cancelWarmup(player.getUniqueId(), true);
     }
 
     // Resolves the actual attacking Player for a damage source: either the
@@ -513,8 +525,8 @@ public class FactionListener implements Listener {
         // actually takes effect. No-op when offline decay is disabled.
         plugin.getPowerManager().handleOfflineDecay(playerUuid);
 
-        // Update login time for power regen
-        plugin.getPowerManager().getPlayerData(playerUuid).setLastLoginTime(System.currentTimeMillis());
+        // Update login time for power regen (persisted via PowerManager dirty flag)
+        plugin.getPowerManager().updateLoginTime(playerUuid);
 
         // Give daily elixir bonus
         plugin.getElixirManager().onPlayerLogin(playerUuid);
@@ -541,7 +553,7 @@ public class FactionListener implements Listener {
         Player player = event.getPlayer();
         UUID playerUuid = player.getUniqueId();
 
-        plugin.getPowerManager().getPlayerData(playerUuid).setLastLogoutTime(System.currentTimeMillis());
+        plugin.getPowerManager().updateLogoutTime(playerUuid);
 
         // Cancel any pending home-teleport warmup so it doesn't fire against
         // a disconnected player.

@@ -40,6 +40,7 @@ public class DarkFactions extends JavaPlugin {
     private FactionCommand factionCommand;
 
     private int autoSaveTaskId = -1;
+    private boolean migrateLegacyFactionPower;
 
     @Override
     public void onEnable() {
@@ -89,8 +90,14 @@ public class DarkFactions extends JavaPlugin {
             this.dataStore.createTables();
 
             int schemaVer = dataStore.getSchemaVersion();
+            migrateLegacyFactionPower = schemaVer < 2;
             if (schemaVer < 1) {
                 dataStore.setSchemaVersion(1);
+                schemaVer = 1;
+            }
+            if (schemaVer < 2) {
+                dataStore.migrateSchema(schemaVer);
+                dataStore.setSchemaVersion(2);
             }
 
             this.saveQueue = new SaveQueue(dataStore, 2);
@@ -124,6 +131,10 @@ public class DarkFactions extends JavaPlugin {
         factionManager.loadFromStore(dataStore);
         claimManager.loadFromStore(dataStore);
         powerManager.loadFromStore(dataStore);
+        if (migrateLegacyFactionPower) {
+            powerManager.migrateLegacyBonusPower();
+            migrateLegacyFactionPower = false;
+        }
         elixirManager.loadFromStore(dataStore);
     }
 
@@ -135,6 +146,16 @@ public class DarkFactions extends JavaPlugin {
         if (playerNameCache != null) playerNameCache.saveToStoreAsync(saveQueue);
     }
 
+    /** Synchronous persistence for all managers; used during shutdown. */
+    public void persistAllSync() {
+        if (dataStore == null) return;
+        if (factionManager != null) factionManager.saveToStoreSync(dataStore);
+        if (claimManager != null) claimManager.saveToStoreSync(dataStore);
+        if (powerManager != null) powerManager.saveToStoreSync(dataStore);
+        if (elixirManager != null) elixirManager.saveToStoreSync(dataStore);
+        if (playerNameCache != null) playerNameCache.saveToStoreSync(dataStore);
+    }
+
     @Override
     public void onDisable() {
         getLogger().info("DarkFactions is shutting down... saving data...");
@@ -144,8 +165,11 @@ public class DarkFactions extends JavaPlugin {
             autoSaveTaskId = -1;
         }
 
-        persistAll();
-        if (saveQueue != null) saveQueue.shutdown();
+        persistAllSync();
+        if (saveQueue != null) {
+            saveQueue.flushAndAwait(30, TimeUnit.SECONDS);
+            saveQueue.shutdown();
+        }
         if (databaseManager != null) databaseManager.close();
 
         instance = null;

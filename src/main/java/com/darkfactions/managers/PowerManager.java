@@ -124,6 +124,52 @@ public class PowerManager {
         return totalPower;
     }
 
+    /** Sum of member max player power (excludes faction bonus max). */
+    public double getFactionMemberMaxPower(UUID factionId) {
+        Faction faction = plugin.getFactionManager().getFaction(factionId);
+        if (faction == null) return 0.0;
+
+        double totalMax = 0.0;
+        for (UUID memberUuid : faction.getMembers()) {
+            totalMax += getPlayerData(memberUuid).getMaxPower();
+        }
+        return totalMax;
+    }
+
+    /**
+     * Effective faction power: sum of member player power plus admin/shop bonus power.
+     */
+    public double getEffectiveFactionPower(UUID factionId) {
+        Faction faction = plugin.getFactionManager().getFaction(factionId);
+        if (faction == null) return 0.0;
+        return PowerRules.effectiveFactionPower(getFactionPower(factionId), faction.getBonusPower());
+    }
+
+    /**
+     * Effective faction max power: sum of member max player power plus shop bonus max.
+     */
+    public double getFactionMaxPower(UUID factionId) {
+        Faction faction = plugin.getFactionManager().getFaction(factionId);
+        if (faction == null) return 0.0;
+        return PowerRules.effectiveFactionMaxPower(getFactionMemberMaxPower(factionId), faction.getMaxPower());
+    }
+
+    /**
+     * One-time migration from legacy faction-level {@code power}/{@code max_power} columns.
+     * Converts stored totals into bonus-only values by subtracting current member sums.
+     */
+    public void migrateLegacyBonusPower() {
+        for (Faction faction : plugin.getFactionManager().getAllFactions()) {
+            UUID factionId = faction.getFactionId();
+            double memberPower = getFactionPower(factionId);
+            double memberMax = getFactionMemberMaxPower(factionId);
+            faction.setBonusPower(Math.max(0.0, faction.getBonusPower() - memberPower));
+            faction.setMaxPower(Math.max(0.0, faction.getMaxPower() - memberMax));
+        }
+        plugin.getFactionManager().markDirty();
+        plugin.getLogger().info("Migrated legacy faction power to per-player + bonus model.");
+    }
+
     // Called when a player dies from PVP
     public void onPlayerDeath(UUID playerUuid) {
         FactionPlayer data = getPlayerData(playerUuid);
@@ -163,7 +209,7 @@ public class PowerManager {
         if (raidPower <= 0) return;
         Faction faction = plugin.getFactionManager().getFaction(factionId);
         if (faction == null) return;
-        faction.addPower(raidPower);
+        faction.addBonusPower(raidPower);
         plugin.getFactionManager().markDirty();
     }
 
@@ -197,6 +243,16 @@ public class PowerManager {
         dirty.set(true);
     }
 
+    public void updateLoginTime(UUID playerUuid) {
+        getPlayerData(playerUuid).setLastLoginTime(System.currentTimeMillis());
+        dirty.set(true);
+    }
+
+    public void updateLogoutTime(UUID playerUuid) {
+        getPlayerData(playerUuid).setLastLogoutTime(System.currentTimeMillis());
+        dirty.set(true);
+    }
+
     // ==========================================
     // Power Check - can a faction be raided?
     // ==========================================
@@ -205,7 +261,7 @@ public class PowerManager {
         Faction faction = plugin.getFactionManager().getFaction(factionId);
         if (faction == null) return true;
 
-        double totalPower = getFactionPower(factionId);
+        double totalPower = getEffectiveFactionPower(factionId);
         int memberCount = faction.getMemberCount();
 
         return PowerRules.isRaidable(totalPower, memberCount, RAIDABLE_POWER_PER_MEMBER);
@@ -230,5 +286,14 @@ public class PowerManager {
                 store.savePlayerData(data);
             }
         });
+    }
+
+    /** Synchronous save used during plugin shutdown; clears dirty only after write. */
+    public void saveToStoreSync(DataStore store) {
+        if (!dirty.get()) return;
+        for (FactionPlayer data : playerDataMap.values()) {
+            store.savePlayerData(data);
+        }
+        dirty.set(false);
     }
 }

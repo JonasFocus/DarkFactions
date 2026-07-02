@@ -36,6 +36,20 @@ public final class PowerRules {
     }
 
     /**
+     * Effective faction power: per-member power summed, plus admin/shop bonus power.
+     */
+    public static double effectiveFactionPower(double memberPowerSum, double bonusPower) {
+        return memberPowerSum + bonusPower;
+    }
+
+    /**
+     * Effective faction max power: per-member max power summed, plus bonus max from shop upgrades.
+     */
+    public static double effectiveFactionMaxPower(double memberMaxPowerSum, double bonusMaxPower) {
+        return memberMaxPowerSum + bonusMaxPower;
+    }
+
+    /**
      * A faction is raidable when it has at least one member and its total power
      * is below {@code perMemberThreshold} per member.
      */

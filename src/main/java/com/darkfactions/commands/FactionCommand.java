@@ -328,7 +328,8 @@ public class FactionCommand implements CommandExecutor {
         Faction faction = requireFaction(player);
         if (faction == null) return true;
 
-        if (!requireOfficer(player, faction, "Only the leader and officers can invite players!")) return true;
+        if (!requireOfficerOrMemberPermitted(player, faction, plugin.getConfigManager().isMembersCanInvite(),
+                "Only the leader and officers can invite players!")) return true;
 
         Player target = Bukkit.getPlayerExact(args[1]);
         if (target == null || !target.isOnline()) {
@@ -370,7 +371,8 @@ public class FactionCommand implements CommandExecutor {
         Faction faction = requireFaction(player);
         if (faction == null) return true;
 
-        if (!requireOfficer(player, faction, "Only the leader and officers can manage invites!")) return true;
+        if (!requireOfficerOrMemberPermitted(player, faction, plugin.getConfigManager().isMembersCanInvite(),
+                "Only the leader and officers can manage invites!")) return true;
 
         Player target = Bukkit.getPlayerExact(args[1]);
         if (target == null || !target.isOnline()) {
@@ -512,7 +514,8 @@ public class FactionCommand implements CommandExecutor {
         Faction faction = requireFaction(player);
         if (faction == null) return true;
 
-        if (!requireOfficer(player, faction, "Only the leader and officers can kick players!")) return true;
+        if (!requireOfficerOrMemberPermitted(player, faction, plugin.getConfigManager().isMembersCanKick(),
+                "Only the leader and officers can kick players!")) return true;
 
         Player target = Bukkit.getPlayerExact(args[1]);
         UUID targetUuid;
@@ -734,7 +737,8 @@ public class FactionCommand implements CommandExecutor {
         Faction faction = requireFaction(player);
         if (faction == null) return true;
 
-        if (!requireOfficer(player, faction, "Only the leader and officers can set the faction home!")) return true;
+        if (!requireOfficerOrMemberPermitted(player, faction, plugin.getConfigManager().isMembersCanSetHome(),
+                "Only the leader and officers can set the faction home!")) return true;
 
         plugin.getFactionManager().setFactionHome(faction.getFactionId(), player.getLocation());
         player.sendMessage(msg.success("Faction home has been set!"));
@@ -825,7 +829,8 @@ public class FactionCommand implements CommandExecutor {
         Faction faction = requireFaction(player);
         if (faction == null) return true;
 
-        if (!requireOfficer(player, faction, "Only the leader and officers can claim land!")) return true;
+        if (!requireOfficerOrMemberPermitted(player, faction, plugin.getConfigManager().isMembersCanClaim(),
+                "Only the leader and officers can claim land!")) return true;
 
         Chunk chunk = player.getLocation().getChunk();
         ClaimResult result = plugin.getClaimManager().claimChunk(chunk, faction.getFactionId());
@@ -849,7 +854,8 @@ public class FactionCommand implements CommandExecutor {
         Faction faction = requireFaction(player);
         if (faction == null) return true;
 
-        if (!requireOfficer(player, faction, "Only the leader and officers can unclaim land!")) return true;
+        if (!requireOfficerOrMemberPermitted(player, faction, plugin.getConfigManager().isMembersCanClaim(),
+                "Only the leader and officers can unclaim land!")) return true;
 
         Chunk chunk = player.getLocation().getChunk();
         UUID ownerId = plugin.getClaimManager().getClaimOwner(chunk);
@@ -939,7 +945,8 @@ public class FactionCommand implements CommandExecutor {
         Faction faction = requireFaction(player);
         if (faction == null) return true;
 
-        if (!requireOfficer(player, faction, "Only the leader and officers can use auto-claim!")) return true;
+        if (!requireOfficerOrMemberPermitted(player, faction, plugin.getConfigManager().isMembersCanClaim(),
+                "Only the leader and officers can use auto-claim!")) return true;
 
         boolean current = autoClaimMap.getOrDefault(player.getUniqueId(), false);
         boolean newState = !current;
@@ -996,7 +1003,7 @@ public class FactionCommand implements CommandExecutor {
         player.sendMessage(msg.header("Faction: " + faction.getFormattedTag() + faction.getName()));
         player.sendMessage(msg.info("Leader: " + plugin.getPlayerNameCache().getPlayerName(faction.getLeaderUuid())));
         player.sendMessage(msg.info("Members: " + faction.getMemberCount()));
-        player.sendMessage(msg.info("Power: " + String.format("%.1f", faction.getPower())));
+        player.sendMessage(msg.info("Power: " + String.format("%.1f", effectivePower(faction))));
         player.sendMessage(msg.info("Elixir: " + String.format("%.0f", faction.getElixir())));
         player.sendMessage(msg.info("Land: " + plugin.getClaimManager().getClaimCount(faction.getFactionId())));
         player.sendMessage(msg.info("Home Set: " + (faction.hasHome() ? "Yes" : "No")));
@@ -1034,7 +1041,7 @@ public class FactionCommand implements CommandExecutor {
         for (Faction faction : factions) {
             player.sendMessage(msg.info(FactionListFormatter.listRow(
                     faction.getFormattedTag(), faction.getName(), faction.getMemberCount(),
-                    faction.getPower(), plugin.getClaimManager().getClaimCount(faction.getFactionId()))));
+                    effectivePower(faction), plugin.getClaimManager().getClaimCount(faction.getFactionId()))));
         }
 
         return true;
@@ -1075,8 +1082,8 @@ public class FactionCommand implements CommandExecutor {
             player.sendMessage(msg.info(prefix + plugin.getPlayerNameCache().getPlayerName(memberUuid)));
         }
 
-        player.sendMessage(msg.info("Power: " + String.format("%.1f", faction.getPower()) +
-                "/" + String.format("%.1f", faction.getMaxPower())));
+        player.sendMessage(msg.info("Power: " + String.format("%.1f", effectivePower(faction)) +
+                "/" + String.format("%.1f", effectiveMaxPower(faction))));
         player.sendMessage(msg.info("Elixir: " + String.format("%.0f", faction.getElixir())));
         player.sendMessage(msg.info("Land: " + plugin.getClaimManager().getClaimCount(faction.getFactionId()) + " chunks"));
         player.sendMessage(msg.info("Open: " + (faction.isOpen() ? "Yes - Anyone can join" : "No - Invite only")));
@@ -1146,7 +1153,7 @@ public class FactionCommand implements CommandExecutor {
                 case "elixir" -> FactionListFormatter.metric(faction.getElixir(), 0, "elixir");
                 case "members" -> faction.getMemberCount() + " members";
                 case "land" -> plugin.getClaimManager().getClaimCount(faction.getFactionId()) + " claims";
-                default -> FactionListFormatter.metric(faction.getPower(), 1, "power");
+                default -> FactionListFormatter.metric(effectivePower(faction), 1, "power");
             };
             player.sendMessage(msg.info(FactionListFormatter.rankRow(
                     rank, faction.getFormattedTag(), faction.getName(), value)));
@@ -1165,13 +1172,14 @@ public class FactionCommand implements CommandExecutor {
         Faction faction = requireFaction(player);
         if (faction == null) return true;
 
-        double totalPower = plugin.getPowerManager().getFactionPower(faction.getFactionId());
+        double totalPower = plugin.getPowerManager().getEffectiveFactionPower(faction.getFactionId());
         double playerPower = plugin.getPowerManager().getPlayerPower(player.getUniqueId());
 
         player.sendMessage(msg.header("Faction Power"));
         player.sendMessage(msg.info("Total Power: " + String.format("%.1f", totalPower)));
         player.sendMessage(msg.info("Your Power: " + String.format("%.1f", playerPower)));
-        player.sendMessage(msg.info("Max Power: " + String.format("%.1f", faction.getMaxPower())));
+        player.sendMessage(msg.info("Max Power: " + String.format("%.1f",
+                plugin.getPowerManager().getFactionMaxPower(faction.getFactionId()))));
 
         if (plugin.getPowerManager().isFactionRaidable(faction.getFactionId())) {
             player.sendMessage(msg.warning("Your faction is raidable! Power is too low!"));
@@ -1604,6 +1612,11 @@ public class FactionCommand implements CommandExecutor {
 
         if (!requireArgs(player, args, 2, "/f ally <faction>")) return true;
 
+        if (!player.hasPermission("darkfactions.ally")) {
+            player.sendMessage(msg.error("You don't have permission to manage alliances!"));
+            return true;
+        }
+
         Faction faction = requireFaction(player);
         if (faction == null) return true;
 
@@ -1781,9 +1794,9 @@ public class FactionCommand implements CommandExecutor {
                 }
                 try {
                     double powerAmount = Double.parseDouble(args[3]);
-                    powerFaction.setPower(powerAmount);
+                    powerFaction.setBonusPower(powerAmount);
                     plugin.getFactionManager().markDirty();
-                    player.sendMessage(msg.success("Set " + powerFaction.getName() + "'s power to " + powerAmount));
+                    player.sendMessage(msg.success("Set " + powerFaction.getName() + "'s bonus power to " + powerAmount));
                 } catch (NumberFormatException e) {
                     player.sendMessage(msg.error("Invalid number!"));
                 }
@@ -1868,7 +1881,7 @@ public class FactionCommand implements CommandExecutor {
                 for (Faction f : factions) {
                     sender.sendMessage(msg.info(FactionListFormatter.listRow(
                             "", f.getName(), f.getMemberCount(),
-                            f.getPower(), plugin.getClaimManager().getClaimCount(f.getFactionId()))));
+                            effectivePower(f), plugin.getClaimManager().getClaimCount(f.getFactionId()))));
                 }
                 return true;
 
@@ -1916,7 +1929,7 @@ public class FactionCommand implements CommandExecutor {
         int rank = 1;
         for (Faction f : sorted) {
             sender.sendMessage(msg.info(FactionListFormatter.rankRow(
-                    rank, "", f.getName(), FactionListFormatter.metric(f.getPower(), 1, "power"))));
+                    rank, "", f.getName(), FactionListFormatter.metric(effectivePower(f), 1, "power"))));
             rank++;
         }
         return true;
@@ -1943,9 +1956,9 @@ public class FactionCommand implements CommandExecutor {
                 }
                 try {
                     double amount = Double.parseDouble(args[3]);
-                    powerFaction.setPower(amount);
+                    powerFaction.setBonusPower(amount);
                     plugin.getFactionManager().markDirty();
-                    sender.sendMessage(msg.success("Set " + powerFaction.getName() + "'s power to " + amount));
+                    sender.sendMessage(msg.success("Set " + powerFaction.getName() + "'s bonus power to " + amount));
                 } catch (NumberFormatException e) {
                     sender.sendMessage(msg.error("Invalid number!"));
                 }
@@ -1995,8 +2008,8 @@ public class FactionCommand implements CommandExecutor {
         sender.sendMessage(msg.header("Factions (" + factions.size() + ")"));
         for (Faction f : factions) {
             sender.sendMessage(msg.info(FactionListFormatter.listRow(
-                    "", f.getName(), f.getMemberCount(),
-                    f.getPower(), plugin.getClaimManager().getClaimCount(f.getFactionId()))));
+                    "",                     f.getName(), f.getMemberCount(),
+                    effectivePower(f), plugin.getClaimManager().getClaimCount(f.getFactionId()))));
         }
         return true;
     }
@@ -2056,6 +2069,14 @@ public class FactionCommand implements CommandExecutor {
 
     // Return the player's faction, or null after telling them they're not in one.
     // Callers do: Faction f = requireFaction(player); if (f == null) return true;
+    private double effectivePower(Faction faction) {
+        return plugin.getPowerManager().getEffectiveFactionPower(faction.getFactionId());
+    }
+
+    private double effectiveMaxPower(Faction faction) {
+        return plugin.getPowerManager().getFactionMaxPower(faction.getFactionId());
+    }
+
     private Faction requireFaction(Player player) {
         Faction faction = plugin.getFactionManager().getPlayerFaction(player.getUniqueId());
         if (faction == null) {
@@ -2092,6 +2113,18 @@ public class FactionCommand implements CommandExecutor {
             return false;
         }
         return true;
+    }
+
+    // Require leader/officer, or any member when `membersAllowed` is true.
+    private boolean requireOfficerOrMemberPermitted(Player player, Faction faction, boolean membersAllowed, String denial) {
+        if (faction.isLeaderOrOfficer(player.getUniqueId())) {
+            return true;
+        }
+        if (membersAllowed && faction.isMember(player.getUniqueId())) {
+            return true;
+        }
+        player.sendMessage(msg.error(denial));
+        return false;
     }
 
     // Find a player's UUID by name within a faction

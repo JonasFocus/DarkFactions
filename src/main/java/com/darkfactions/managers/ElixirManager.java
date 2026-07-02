@@ -11,7 +11,9 @@ import com.darkfactions.models.Faction;
 import com.darkfactions.storage.DataStore;
 import com.darkfactions.storage.SaveQueue;
 import com.darkfactions.utils.ConfigManager;
+import com.darkfactions.utils.ElixirDailyRules;
 
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -24,6 +26,7 @@ public class ElixirManager {
 
     private final DarkFactions plugin;
     private final Map<UUID, Double> pendingElixir;
+    private final Map<UUID, Long> lastDailyClaim;
     private final Set<UUID> pendingElixirDeletions;
     private final AtomicBoolean pendingDirty;
 
@@ -40,6 +43,7 @@ public class ElixirManager {
     public ElixirManager(DarkFactions plugin) {
         this.plugin = plugin;
         this.pendingElixir = new ConcurrentHashMap<>();
+        this.lastDailyClaim = new ConcurrentHashMap<>();
         this.pendingElixirDeletions = ConcurrentHashMap.newKeySet();
         this.pendingDirty = new AtomicBoolean(false);
         reloadConfig();
@@ -114,8 +118,17 @@ public class ElixirManager {
         }
     }
 
-    // Daily login bonus
+    // Daily login bonus — at most once per calendar day (server time zone)
     public void onPlayerLogin(UUID playerUuid) {
+        ZoneId zone = ZoneId.systemDefault();
+        long now = System.currentTimeMillis();
+        if (!ElixirDailyRules.isEligibleForDailyClaim(lastDailyClaim.get(playerUuid), now, zone)) {
+            return;
+        }
+
+        lastDailyClaim.put(playerUuid, now);
+        pendingDirty.set(true);
+
         if (autoClaimOnJoin) {
             // Auto-claim the daily bonus directly to their faction
             Faction faction = plugin.getFactionManager().getPlayerFaction(playerUuid);
@@ -126,7 +139,6 @@ public class ElixirManager {
         } else {
             // Add to pending - claimed via /f elixir
             pendingElixir.merge(playerUuid, dailyBonus, Double::sum);
-            pendingDirty.set(true);
         }
     }
 
@@ -195,6 +207,7 @@ public class ElixirManager {
 
     public void loadFromStore(DataStore store) {
         pendingElixir.putAll(store.loadPendingElixir());
+        lastDailyClaim.putAll(store.loadLastDailyClaims());
         plugin.getLogger().info("Loaded elixir data - " + pendingElixir.size() + " players have pending elixir!");
     }
 
@@ -205,14 +218,30 @@ public class ElixirManager {
         List<UUID> toDelete = hasDeletions ? new ArrayList<>(pendingElixirDeletions) : List.of();
         pendingElixirDeletions.removeAll(toDelete);
 
-        queue.submit(() -> {
-            DataStore store = queue.store();
-            for (UUID playerUuid : toDelete) {
-                store.deletePendingElixir(playerUuid);
-            }
-            for (Map.Entry<UUID, Double> e : pendingElixir.entrySet()) {
-                store.savePendingElixir(e.getKey(), e.getValue());
-            }
-        });
+        queue.submit(() -> flushToStore(queue.store(), toDelete));
+    }
+
+    /** Synchronous save used during plugin shutdown; clears dirty only after write. */
+    public void saveToStoreSync(DataStore store) {
+        boolean hasDeletions = !pendingElixirDeletions.isEmpty();
+        if (!pendingDirty.get() && !hasDeletions) return;
+
+        List<UUID> toDelete = hasDeletions ? new ArrayList<>(pendingElixirDeletions) : List.of();
+        pendingElixirDeletions.removeAll(toDelete);
+
+        flushToStore(store, toDelete);
+        pendingDirty.set(false);
+    }
+
+    private void flushToStore(DataStore store, List<UUID> toDelete) {
+        for (UUID playerUuid : toDelete) {
+            store.deletePendingElixir(playerUuid);
+        }
+        for (Map.Entry<UUID, Double> e : pendingElixir.entrySet()) {
+            store.savePendingElixir(e.getKey(), e.getValue());
+        }
+        for (Map.Entry<UUID, Long> e : lastDailyClaim.entrySet()) {
+            store.saveLastDailyClaim(e.getKey(), e.getValue());
+        }
     }
 }

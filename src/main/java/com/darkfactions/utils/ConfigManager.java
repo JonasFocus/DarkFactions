@@ -151,6 +151,7 @@ public class ConfigManager {
     public boolean isAlliesCanInteract() { return config.getBoolean("protection.allies-can-interact", true); }
     public boolean isAlliesCanBreak() { return config.getBoolean("protection.allies-can-break", false); }
     public boolean isAlliesCanPlace() { return config.getBoolean("protection.allies-can-place", false); }
+    public boolean isRaidableBypass() { return config.getBoolean("protection.raidable-bypass", true); }
     public boolean isMembersCanInvite() { return config.getBoolean("protection.members-can-invite", false); }
     public boolean isMembersCanKick() { return config.getBoolean("protection.members-can-kick", false); }
     public boolean isMembersCanClaim() { return config.getBoolean("protection.members-can-claim", false); }

@@ -7,6 +7,7 @@ import com.darkfactions.models.FactionPlayer;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -20,7 +21,7 @@ import java.util.logging.Level;
 
 public class SqlStore implements DataStore {
 
-    private static final int SCHEMA_VERSION = 1;
+    private static final int SCHEMA_VERSION = 2;
 
     // Role values stored in faction_members.role
     private static final String ROLE_LEADER = "LEADER";
@@ -52,6 +53,7 @@ public class SqlStore implements DataStore {
                 + "home_x DOUBLE, home_y DOUBLE, home_z DOUBLE,"
                 + "home_yaw FLOAT, home_pitch FLOAT,"
                 + "power DOUBLE DEFAULT 0,"
+                + "bonus_power DOUBLE DEFAULT 0,"
                 + "max_power DOUBLE DEFAULT 0,"
                 + "elixir DOUBLE DEFAULT 0,"
                 + "open BOOLEAN DEFAULT false,"
@@ -103,6 +105,11 @@ public class SqlStore implements DataStore {
                 + "amount DOUBLE DEFAULT 0"
                 + ")");
 
+        execute("CREATE TABLE IF NOT EXISTS elixir_daily_claims ("
+                + "player_uuid VARCHAR(36) PRIMARY KEY,"
+                + "claimed_at BIGINT NOT NULL"
+                + ")");
+
         execute("CREATE TABLE IF NOT EXISTS schema_version ("
                 + "version INT PRIMARY KEY,"
                 + "applied_at BIGINT NOT NULL"
@@ -126,6 +133,50 @@ public class SqlStore implements DataStore {
                 version, System.currentTimeMillis());
     }
 
+    /**
+     * Schema v2: add {@code bonus_power} for admin/shop boosts. The legacy {@code power}
+     * column is copied into {@code bonus_power} once, then ignored on read/write.
+     */
+    @Override
+    public void migrateSchema(int fromVersion) {
+        if (fromVersion >= 2) {
+            return;
+        }
+        if (!columnExists("factions", "bonus_power")) {
+            execute("ALTER TABLE factions ADD COLUMN bonus_power DOUBLE DEFAULT 0");
+            execute("UPDATE factions SET bonus_power = power");
+            plugin.getLogger().info("Added factions.bonus_power and copied legacy power values.");
+        }
+    }
+
+    private boolean columnExists(String table, String column) {
+        try (Connection c = db.getConnection()) {
+            var meta = c.getMetaData();
+            try (ResultSet rs = meta.getColumns(null, null, table, column)) {
+                if (rs.next()) {
+                    return true;
+                }
+            }
+            // SQLite stores unquoted table names lowercase; retry if needed.
+            try (ResultSet rs = meta.getColumns(null, null, table.toLowerCase(), column)) {
+                return rs.next();
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Could not inspect column " + table + "." + column, e);
+            return false;
+        }
+    }
+
+    private static boolean hasColumn(ResultSet rs, String column) throws SQLException {
+        ResultSetMetaData meta = rs.getMetaData();
+        for (int i = 1; i <= meta.getColumnCount(); i++) {
+            if (column.equalsIgnoreCase(meta.getColumnLabel(i))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     // ========== Factions ==========
 
     @Override
@@ -142,7 +193,12 @@ public class SqlStore implements DataStore {
                 f.setFactionId(UUID.fromString(rs.getString("id")));
                 f.setName(rs.getString("name"));
                 f.setLeaderUuid(UUID.fromString(rs.getString("leader")));
-                f.setPower(rs.getDouble("power"));
+                if (hasColumn(rs, "bonus_power")) {
+                    f.setBonusPower(rs.getDouble("bonus_power"));
+                } else {
+                    // Pre-v2 database before migrateSchema runs — load legacy total into bonus for migration.
+                    f.setBonusPower(rs.getDouble("power"));
+                }
                 f.setMaxPower(rs.getDouble("max_power"));
                 f.setElixir(rs.getDouble("elixir"));
                 f.setOpen(rs.getBoolean("open"));
@@ -248,8 +304,8 @@ public class SqlStore implements DataStore {
         String fid = faction.getFactionId().toString();
         String factionSql = "REPLACE INTO factions (id, name, leader, description, motd, tag, "
                 + "home_world, home_x, home_y, home_z, home_yaw, home_pitch, "
-                + "power, max_power, elixir, open, pvp_enabled, tnt_enabled, created) "
-                + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                + "power, bonus_power, max_power, elixir, open, pvp_enabled, tnt_enabled, created) "
+                + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
         // The faction row, its members and its relations are written together in a
         // single transaction so a mid-save failure can't leave a faction with stale
@@ -272,7 +328,8 @@ public class SqlStore implements DataStore {
                             faction.hasHome() ? faction.getHomeZ() : 0,
                             faction.hasHome() ? faction.getHomeYaw() : 0,
                             faction.hasHome() ? faction.getHomePitch() : 0,
-                            faction.getPower(),
+                            0.0, // legacy power column — unused; kept for backward-compatible schema
+                            faction.getBonusPower(),
                             faction.getMaxPower(),
                             faction.getElixir(),
                             faction.isOpen(),
@@ -485,6 +542,30 @@ public class SqlStore implements DataStore {
     @Override
     public void deletePendingElixir(UUID playerUuid) {
         execute("DELETE FROM elixir_pending WHERE player_uuid = ?", playerUuid.toString());
+    }
+
+    // ========== Elixir Daily Claims ==========
+
+    @Override
+    public Map<UUID, Long> loadLastDailyClaims() {
+        Map<UUID, Long> map = new HashMap<>();
+        String sql = "SELECT player_uuid, claimed_at FROM elixir_daily_claims";
+        try (Connection c = db.getConnection();
+             PreparedStatement s = c.prepareStatement(sql);
+             ResultSet rs = s.executeQuery()) {
+            while (rs.next()) {
+                map.put(UUID.fromString(rs.getString("player_uuid")), rs.getLong("claimed_at"));
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.SEVERE, "Failed to load daily elixir claims", e);
+        }
+        return map;
+    }
+
+    @Override
+    public void saveLastDailyClaim(UUID playerUuid, long epochMillis) {
+        execute("REPLACE INTO elixir_daily_claims (player_uuid, claimed_at) VALUES (?, ?)",
+                playerUuid.toString(), epochMillis);
     }
 
     // ========== Helpers ==========

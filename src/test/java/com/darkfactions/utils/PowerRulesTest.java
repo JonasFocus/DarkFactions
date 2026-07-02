@@ -46,4 +46,16 @@ class PowerRulesTest {
     void emptyFactionIsNeverRaidable() {
         assertFalse(PowerRules.isRaidable(0.0, 0, 0.5));
     }
+
+    @Test
+    void effectiveFactionPowerAddsMemberSumAndBonus() {
+        assertEquals(25.0, PowerRules.effectiveFactionPower(20.0, 5.0), EPS);
+        assertEquals(20.0, PowerRules.effectiveFactionPower(20.0, 0.0), EPS);
+    }
+
+    @Test
+    void effectiveFactionMaxPowerAddsMemberSumAndBonus() {
+        assertEquals(60.0, PowerRules.effectiveFactionMaxPower(50.0, 10.0), EPS);
+        assertEquals(50.0, PowerRules.effectiveFactionMaxPower(50.0, 0.0), EPS);
+    }
 }

@@ -70,8 +70,6 @@ public class FactionManager {
         ConfigManager cfg = plugin.getConfigManager();
 
         Faction faction = new Faction(name, leaderUuid);
-        faction.setPower(cfg.getFactionStartingPower());
-        faction.setMaxPower(cfg.getFactionStartingMaxPower());
         faction.setOpen(cfg.isDefaultOpen());
         faction.setPvpEnabled(cfg.isDefaultPvp());
         faction.setTntEnabled(cfg.isDefaultTnt());
@@ -282,7 +280,9 @@ public class FactionManager {
     public int getFactionCount() { return factions.size(); }
 
     public List<Faction> getTopFactionsByPower(int limit) {
-        return FactionRankings.top(factions.values(), FactionRankings.BY_POWER, limit);
+        return FactionRankings.top(factions.values(),
+                FactionRankings.byPower(f -> plugin.getPowerManager().getEffectiveFactionPower(f.getFactionId())),
+                limit);
     }
 
     public List<Faction> getTopFactionsByElixir(int limit) {
@@ -325,5 +325,22 @@ public class FactionManager {
                 store.saveFaction(f);
             }
         });
+    }
+
+    /** Synchronous save used during plugin shutdown; clears dirty only after write. */
+    public void saveToStoreSync(DataStore store) {
+        boolean hasDeletions = !pendingDeletions.isEmpty();
+        if (!dirty.get() && !hasDeletions) return;
+
+        List<UUID> toDelete = hasDeletions ? new ArrayList<>(pendingDeletions) : List.of();
+        pendingDeletions.removeAll(toDelete);
+
+        for (UUID factionId : toDelete) {
+            store.deleteFaction(factionId);
+        }
+        for (Faction f : factions.values()) {
+            store.saveFaction(f);
+        }
+        dirty.set(false);
     }
 }

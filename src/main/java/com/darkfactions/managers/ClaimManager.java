@@ -372,24 +372,32 @@ public class ClaimManager {
     public void saveToStoreAsync(SaveQueue queue) {
         if (changes.isEmpty()) return;
         ClaimChangeSet.Drain drain = changes.drain();
-        queue.submit(() -> {
-            DataStore store = queue.store();
-            // Both branches re-check the live claimMap rather than trusting the
-            // drained key, so the flush is order-independent across SaveQueue's
-            // worker threads: if a chunk is unclaimed then reclaimed across two
-            // flushes, whichever task runs last still leaves the database matching
-            // current ownership.
-            for (String key : drain.upserts()) {
-                UUID owner = claimMap.get(key);
-                if (owner != null) {
-                    store.saveClaim(key, owner);
-                }
+        queue.submit(() -> flushDrain(queue.store(), drain));
+    }
+
+    /** Synchronous save used during plugin shutdown. */
+    public void saveToStoreSync(DataStore store) {
+        if (changes.isEmpty()) return;
+        ClaimChangeSet.Drain drain = changes.drain();
+        flushDrain(store, drain);
+    }
+
+    private void flushDrain(DataStore store, ClaimChangeSet.Drain drain) {
+        // Both branches re-check the live claimMap rather than trusting the
+        // drained key, so the flush is order-independent across SaveQueue's
+        // worker threads: if a chunk is unclaimed then reclaimed across two
+        // flushes, whichever task runs last still leaves the database matching
+        // current ownership.
+        for (String key : drain.upserts()) {
+            UUID owner = claimMap.get(key);
+            if (owner != null) {
+                store.saveClaim(key, owner);
             }
-            for (String key : drain.deletes()) {
-                if (!claimMap.containsKey(key)) {
-                    store.deleteClaim(key);
-                }
+        }
+        for (String key : drain.deletes()) {
+            if (!claimMap.containsKey(key)) {
+                store.deleteClaim(key);
             }
-        });
+        }
     }
 }

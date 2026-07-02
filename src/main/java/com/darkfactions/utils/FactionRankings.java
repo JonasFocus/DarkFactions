@@ -18,9 +18,18 @@ import java.util.List;
  */
 public final class FactionRankings {
 
-    /** Highest power first. */
+    /** Highest effective power first; pass a resolver because power is computed from members + bonus. */
+    public static Comparator<Faction> byPower(java.util.function.ToDoubleFunction<Faction> effectivePower) {
+        return Comparator.comparingDouble(effectivePower).reversed();
+    }
+
+    /**
+     * @deprecated Sort by {@link #byPower(java.util.function.ToDoubleFunction)} with a
+     *             PowerManager-backed effective power resolver instead.
+     */
+    @Deprecated
     public static final Comparator<Faction> BY_POWER =
-            Comparator.comparingDouble(Faction::getPower).reversed();
+            Comparator.comparingDouble(Faction::getBonusPower).reversed();
 
     /** Highest elixir first. */
     public static final Comparator<Faction> BY_ELIXIR =

@@ -12,9 +12,9 @@ import org.junit.jupiter.api.Test;
 
 class FactionRankingsTest {
 
-    private Faction faction(String name, double power, double elixir, int extraMembers) {
+    private Faction faction(String name, double bonusPower, double elixir, int extraMembers) {
         Faction f = new Faction(name, UUID.randomUUID());
-        f.setPower(power);
+        f.setBonusPower(bonusPower);
         f.setElixir(elixir);
         for (int i = 0; i < extraMembers; i++) {
             f.addMember(UUID.randomUUID());
@@ -28,7 +28,8 @@ class FactionRankingsTest {
         Faction high = faction("High", 50, 0, 0);
         Faction mid = faction("Mid", 20, 0, 0);
 
-        List<Faction> top = FactionRankings.top(List.of(low, high, mid), FactionRankings.BY_POWER, 10);
+        List<Faction> top = FactionRankings.top(List.of(low, high, mid),
+                FactionRankings.byPower(Faction::getBonusPower), 10);
 
         assertEquals(List.of("High", "Mid", "Low"), top.stream().map(Faction::getName).toList());
     }
@@ -59,7 +60,8 @@ class FactionRankingsTest {
         Faction b = faction("B", 20, 0, 0);
         Faction c = faction("C", 10, 0, 0);
 
-        List<Faction> top = FactionRankings.top(List.of(a, b, c), FactionRankings.BY_POWER, 2);
+        List<Faction> top = FactionRankings.top(List.of(a, b, c),
+                FactionRankings.byPower(Faction::getBonusPower), 2);
 
         assertEquals(List.of("A", "B"), top.stream().map(Faction::getName).toList());
     }
@@ -67,8 +69,8 @@ class FactionRankingsTest {
     @Test
     void zeroOrNegativeLimitYieldsEmpty() {
         Faction a = faction("A", 30, 0, 0);
-        assertTrue(FactionRankings.top(List.of(a), FactionRankings.BY_POWER, 0).isEmpty());
-        assertTrue(FactionRankings.top(List.of(a), FactionRankings.BY_POWER, -5).isEmpty());
+        assertTrue(FactionRankings.top(List.of(a), FactionRankings.byPower(Faction::getBonusPower), 0).isEmpty());
+        assertTrue(FactionRankings.top(List.of(a), FactionRankings.byPower(Faction::getBonusPower), -5).isEmpty());
     }
 
     @Test
@@ -76,7 +78,8 @@ class FactionRankingsTest {
         Faction a = faction("A", 30, 0, 0);
         Faction b = faction("B", 20, 0, 0);
 
-        List<Faction> top = FactionRankings.top(List.of(a, b), FactionRankings.BY_POWER, 100);
+        List<Faction> top = FactionRankings.top(List.of(a, b),
+                FactionRankings.byPower(Faction::getBonusPower), 100);
 
         assertEquals(2, top.size());
     }
@@ -87,7 +90,7 @@ class FactionRankingsTest {
         Faction b = faction("B", 30, 0, 0);
         List<Faction> input = new java.util.ArrayList<>(List.of(a, b));
 
-        FactionRankings.top(input, FactionRankings.BY_POWER, 10);
+        FactionRankings.top(input, FactionRankings.byPower(Faction::getBonusPower), 10);
 
         assertEquals(List.of("A", "B"), input.stream().map(Faction::getName).toList());
     }

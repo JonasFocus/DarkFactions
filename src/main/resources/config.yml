@@ -297,6 +297,9 @@ protection:
   # Whether allies can place blocks
   allies-can-place: false
 
+  # Allow enemies to break/place in territory when the owning faction is raidable (low power)
+  raidable-bypass: true
+
   # Whether faction members (not officers) can invite others
   members-can-invite: false
 

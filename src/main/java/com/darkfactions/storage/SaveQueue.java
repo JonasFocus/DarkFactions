@@ -3,6 +3,8 @@ package com.darkfactions.storage;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.logging.Logger;
 
 public class SaveQueue {
 
@@ -24,6 +26,24 @@ public class SaveQueue {
 
     public DataStore store() {
         return store;
+    }
+
+    /**
+     * Blocks until all tasks submitted before this call finish, or times out.
+     * Used during shutdown after synchronous saves to drain remaining async work.
+     */
+    public void flushAndAwait(long timeout, TimeUnit unit) {
+        try {
+            executor.submit(() -> { }).get(timeout, unit);
+        } catch (TimeoutException e) {
+            Logger.getLogger("DarkFactions").warning(
+                    "Save queue flush timed out after " + timeout + " " + unit);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            Logger.getLogger("DarkFactions").warning("Save queue flush interrupted");
+        } catch (Exception e) {
+            Logger.getLogger("DarkFactions").warning("Save queue flush failed: " + e.getMessage());
+        }
     }
 
     public void shutdown() {

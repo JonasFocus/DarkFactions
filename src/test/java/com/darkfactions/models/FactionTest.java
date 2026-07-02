@@ -112,6 +112,16 @@ class FactionTest {
     }
 
     @Test
+    void bonusPowerAccumulates() {
+        Faction faction = new Faction("Warriors", UUID.randomUUID());
+        assertEquals(0.0, faction.getBonusPower());
+
+        faction.addBonusPower(5.0);
+        faction.addBonusPower(3.0);
+        assertEquals(8.0, faction.getBonusPower());
+    }
+
+    @Test
     void setMembersReplacesAndPreservesOrder() {
         Faction faction = new Faction("Warriors", UUID.randomUUID());
         UUID a = UUID.randomUUID();

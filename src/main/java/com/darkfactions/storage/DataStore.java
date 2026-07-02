@@ -14,6 +14,8 @@ public interface DataStore {
     int getSchemaVersion();
     void setSchemaVersion(int version);
 
+    void migrateSchema(int fromVersion);
+
     // Factions
     Collection<Faction> loadAllFactions();
     Map<UUID, UUID> loadPlayerFactionMap();
@@ -39,4 +41,8 @@ public interface DataStore {
     Map<UUID, Double> loadPendingElixir();
     void savePendingElixir(UUID playerUuid, double amount);
     void deletePendingElixir(UUID playerUuid);
+
+    // Elixir daily claim timestamps
+    Map<UUID, Long> loadLastDailyClaims();
+    void saveLastDailyClaim(UUID playerUuid, long epochMillis);
 }

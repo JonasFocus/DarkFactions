@@ -74,11 +74,19 @@ public class PlayerNameCache {
 
     public void saveToStoreAsync(SaveQueue queue) {
         if (!dirty.getAndSet(false)) return;
-        queue.submit(() -> {
-            DataStore store = queue.store();
-            for (Map.Entry<UUID, String> e : index.entries().entrySet()) {
-                store.saveName(e.getKey(), e.getValue());
-            }
-        });
+        queue.submit(() -> flushToStore(queue.store()));
+    }
+
+    /** Synchronous save used during plugin shutdown; clears dirty only after write. */
+    public void saveToStoreSync(DataStore store) {
+        if (!dirty.get()) return;
+        flushToStore(store);
+        dirty.set(false);
+    }
+
+    private void flushToStore(DataStore store) {
+        for (Map.Entry<UUID, String> e : index.entries().entrySet()) {
+            store.saveName(e.getKey(), e.getValue());
+        }
     }
 }

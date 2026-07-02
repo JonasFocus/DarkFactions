@@ -51,7 +51,6 @@ public class ConfigManager {
     public String getDatabaseName() { return config.getString("database.mysql.database", "darkfactions"); }
     public String getDatabaseUsername() { return config.getString("database.mysql.username", "root"); }
     public String getDatabasePassword() { return config.getString("database.mysql.password", ""); }
-    public int getDatabaseSaveInterval() { return config.getInt("database.save-interval-seconds", 120); }
 
     // ==========================================
     // GENERAL

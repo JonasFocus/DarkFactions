@@ -22,6 +22,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.logging.Level;
 
 public class PowerManager {
 
@@ -282,18 +283,27 @@ public class PowerManager {
         if (!dirty.getAndSet(false)) return;
         queue.submit(() -> {
             DataStore store = queue.store();
-            for (FactionPlayer data : playerDataMap.values()) {
-                store.savePlayerData(data);
+            try {
+                for (FactionPlayer data : playerDataMap.values()) {
+                    store.savePlayerData(data);
+                }
+            } catch (RuntimeException e) {
+                dirty.set(true);
+                plugin.getLogger().log(Level.SEVERE, "Power data save failed, will retry on the next save cycle", e);
             }
         });
     }
 
-    /** Synchronous save used during plugin shutdown; clears dirty only after write. */
+    /** Synchronous save used during plugin shutdown; clears dirty only after a confirmed write. */
     public void saveToStoreSync(DataStore store) {
         if (!dirty.get()) return;
-        for (FactionPlayer data : playerDataMap.values()) {
-            store.savePlayerData(data);
+        try {
+            for (FactionPlayer data : playerDataMap.values()) {
+                store.savePlayerData(data);
+            }
+            dirty.set(false);
+        } catch (RuntimeException e) {
+            plugin.getLogger().log(Level.SEVERE, "Power data save failed during shutdown", e);
         }
-        dirty.set(false);
     }
 }

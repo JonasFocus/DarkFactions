@@ -123,6 +123,7 @@ public class SqlStore implements DataStore {
              ResultSet rs = s.executeQuery()) {
             return rs.next() ? rs.getInt(1) : 0;
         } catch (SQLException e) {
+            plugin.getLogger().log(Level.SEVERE, "Failed to read schema version", e);
             return 0;
         }
     }
@@ -392,16 +393,48 @@ public class SqlStore implements DataStore {
             }
         } catch (SQLException e) {
             plugin.getLogger().log(Level.SEVERE, "Failed to save faction " + faction.getName(), e);
+            throw new StorageException("Failed to save faction " + faction.getName(), e);
         }
     }
 
     @Override
     public void deleteFaction(UUID factionId) {
         String fid = factionId.toString();
-        execute("DELETE FROM factions WHERE id = ?", fid);
-        execute("DELETE FROM faction_members WHERE faction_id = ?", fid);
-        execute("DELETE FROM faction_relations WHERE faction_id = ? OR target_id = ?", fid, fid);
-        execute("DELETE FROM faction_claims WHERE faction_id = ?", fid);
+        // All four deletes run in one transaction so a mid-delete failure can't
+        // leave orphaned member/relation/claim rows pointing at a gone faction.
+        try (Connection c = db.getConnection()) {
+            boolean previousAutoCommit = c.getAutoCommit();
+            c.setAutoCommit(false);
+            try {
+                try (PreparedStatement s = c.prepareStatement("DELETE FROM factions WHERE id = ?")) {
+                    s.setString(1, fid);
+                    s.executeUpdate();
+                }
+                try (PreparedStatement s = c.prepareStatement("DELETE FROM faction_members WHERE faction_id = ?")) {
+                    s.setString(1, fid);
+                    s.executeUpdate();
+                }
+                try (PreparedStatement s = c.prepareStatement(
+                        "DELETE FROM faction_relations WHERE faction_id = ? OR target_id = ?")) {
+                    s.setString(1, fid);
+                    s.setString(2, fid);
+                    s.executeUpdate();
+                }
+                try (PreparedStatement s = c.prepareStatement("DELETE FROM faction_claims WHERE faction_id = ?")) {
+                    s.setString(1, fid);
+                    s.executeUpdate();
+                }
+                c.commit();
+            } catch (SQLException e) {
+                c.rollback();
+                throw e;
+            } finally {
+                c.setAutoCommit(previousAutoCommit);
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.SEVERE, "Failed to delete faction " + fid, e);
+            throw new StorageException("Failed to delete faction " + fid, e);
+        }
     }
 
     // ========== Claims ==========
@@ -584,6 +617,7 @@ public class SqlStore implements DataStore {
             s.executeUpdate();
         } catch (SQLException e) {
             plugin.getLogger().log(Level.SEVERE, "SQL error: " + sql, e);
+            throw new StorageException("SQL error: " + sql, e);
         }
     }
 

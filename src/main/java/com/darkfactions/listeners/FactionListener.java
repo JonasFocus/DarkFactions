@@ -20,18 +20,26 @@ import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.entity.Entity;
+import org.bukkit.entity.FallingBlock;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Projectile;
+import org.bukkit.entity.TNTPrimed;
+import org.bukkit.entity.Tameable;
 import org.bukkit.projectiles.ProjectileSource;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.event.block.BlockBurnEvent;
+import org.bukkit.event.block.BlockIgniteEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
+import org.bukkit.event.entity.EntityChangeBlockEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
+import org.bukkit.event.player.PlayerBucketEmptyEvent;
+import org.bukkit.event.player.PlayerBucketFillEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
@@ -70,7 +78,7 @@ public class FactionListener implements Listener {
     // TERRITORY PROTECTION - Block Break
     // Prevents players from breaking blocks in enemy territory
     // ==========================================
-    @EventHandler(priority = EventPriority.HIGHEST)
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onBlockBreak(BlockBreakEvent event) {
         Faction denier = protectionDenier(event.getPlayer(), event.getBlock(), ProtectionRules.Action.BREAK);
         if (denier != null) {
@@ -84,7 +92,7 @@ public class FactionListener implements Listener {
     // ==========================================
     // TERRITORY PROTECTION - Block Place
     // ==========================================
-    @EventHandler(priority = EventPriority.HIGHEST)
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onBlockPlace(BlockPlaceEvent event) {
         Faction denier = protectionDenier(event.getPlayer(), event.getBlock(), ProtectionRules.Action.PLACE);
         if (denier != null) {
@@ -99,7 +107,7 @@ public class FactionListener implements Listener {
     // TERRITORY PROTECTION - Chest Interaction
     // Protects chests, furnaces, doors, etc.
     // ==========================================
-    @EventHandler(priority = EventPriority.HIGHEST)
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onPlayerInteract(PlayerInteractEvent event) {
         // Only block interactions (not air)
         if (event.getClickedBlock() == null) {
@@ -214,7 +222,7 @@ public class FactionListener implements Listener {
     // PVP Protection - Faction vs Faction
     // Handles friendly fire toggle and territory PvP
     // ==========================================
-    @EventHandler(priority = EventPriority.HIGHEST)
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onEntityDamageByEntity(EntityDamageByEntityEvent event) {
         if (!(event.getEntity() instanceof Player victim)) {
             return;
@@ -307,9 +315,10 @@ public class FactionListener implements Listener {
         plugin.getFactionCommand().cancelWarmup(player.getUniqueId(), true);
     }
 
-    // Resolves the actual attacking Player for a damage source: either the
-    // damager itself, or whoever fired it if the damager is a projectile
-    // (arrow, trident, thrown potion, etc.) — without this, ranged PvP
+    // Resolves the actual attacking Player for a damage source: the damager
+    // itself, whoever fired it if the damager is a projectile (arrow, trident,
+    // thrown potion, etc.), the owner if it's a tamed pet (wolf sic'd on a
+    // target), or whoever primed it if it's TNT — without this, indirect PvP
     // bypasses every faction/territory protection below.
     private Player resolveAttacker(Entity damager) {
         if (damager instanceof Player player) {
@@ -321,6 +330,12 @@ public class FactionListener implements Listener {
                 return player;
             }
         }
+        if (damager instanceof Tameable pet && pet.getOwner() instanceof Player owner) {
+            return owner;
+        }
+        if (damager instanceof TNTPrimed tnt && tnt.getSource() instanceof Player igniter) {
+            return igniter;
+        }
         return null;
     }
 
@@ -328,7 +343,7 @@ public class FactionListener implements Listener {
     // TNT Protection - Entity Explode
     // Respects faction TNT toggle
     // ==========================================
-    @EventHandler(priority = EventPriority.HIGHEST)
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onEntityExplode(EntityExplodeEvent event) {
         event.blockList().removeIf(this::isTntProtected);
     }
@@ -337,7 +352,7 @@ public class FactionListener implements Listener {
     // Block Explode Protection - Beds / Respawn Anchors
     // Catches explosions that bypass EntityExplodeEvent
     // ==========================================
-    @EventHandler(priority = EventPriority.HIGHEST)
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onBlockExplode(BlockExplodeEvent event) {
         event.blockList().removeIf(this::isTntProtected);
     }
@@ -361,16 +376,90 @@ public class FactionListener implements Listener {
     }
 
     // ==========================================
+    // Bucket Protection - Lava/water griefing
+    // Emptying a bucket is placing a block; filling is taking one.
+    // ==========================================
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onBucketEmpty(PlayerBucketEmptyEvent event) {
+        Block target = event.getBlockClicked().getRelative(event.getBlockFace());
+        Faction denier = protectionDenier(event.getPlayer(), target, ProtectionRules.Action.PLACE);
+        if (denier != null) {
+            event.setCancelled(true);
+            event.getPlayer().sendMessage(plugin.getMessageUtils().error(
+                    "You cannot place liquids in " + denier.getName() + "'s territory!"
+            ));
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onBucketFill(PlayerBucketFillEvent event) {
+        Faction denier = protectionDenier(event.getPlayer(), event.getBlockClicked(), ProtectionRules.Action.BREAK);
+        if (denier != null) {
+            event.setCancelled(true);
+            event.getPlayer().sendMessage(plugin.getMessageUtils().error(
+                    "You cannot take liquids from " + denier.getName() + "'s territory!"
+            ));
+        }
+    }
+
+    // ==========================================
+    // Fire Protection - Ignition and burn damage in claims
+    // ==========================================
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onBlockIgnite(BlockIgniteEvent event) {
+        if (event.getPlayer() != null) {
+            // Player-lit fire follows the normal place rules (own land allowed)
+            Faction denier = protectionDenier(event.getPlayer(), event.getBlock(), ProtectionRules.Action.PLACE);
+            if (denier != null) {
+                event.setCancelled(true);
+                event.getPlayer().sendMessage(plugin.getMessageUtils().error(
+                        "You cannot light fires in " + denier.getName() + "'s territory!"
+                ));
+            }
+            return;
+        }
+        // No player involved (spread, lava, fireball): never let fire creep
+        // across a border into claimed territory.
+        if (plugin.getConfigManager().isProtectionEnabled()
+                && plugin.getClaimManager().getLocationOwner(event.getBlock().getLocation()) != null) {
+            event.setCancelled(true);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onBlockBurn(BlockBurnEvent event) {
+        if (plugin.getConfigManager().isProtectionEnabled()
+                && plugin.getClaimManager().getLocationOwner(event.getBlock().getLocation()) != null) {
+            event.setCancelled(true);
+        }
+    }
+
+    // ==========================================
+    // Entity Grief Protection - Enderman theft, ravagers, wither block changes
+    // Falling blocks are excluded so sand/gravel physics still work.
+    // ==========================================
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onEntityChangeBlock(EntityChangeBlockEvent event) {
+        if (event.getEntity() instanceof Player || event.getEntity() instanceof FallingBlock) {
+            return;
+        }
+        if (plugin.getConfigManager().isProtectionEnabled()
+                && plugin.getClaimManager().getLocationOwner(event.getBlock().getLocation()) != null) {
+            event.setCancelled(true);
+        }
+    }
+
+    // ==========================================
     // Piston Protection - Prevent pushing blocks out of claims
     // ==========================================
-    @EventHandler(priority = EventPriority.HIGHEST)
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onPistonExtend(BlockPistonExtendEvent event) {
         if (crossesClaimBoundary(event.getBlocks(), event.getDirection())) {
             event.setCancelled(true);
         }
     }
 
-    @EventHandler(priority = EventPriority.HIGHEST)
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onPistonRetract(BlockPistonRetractEvent event) {
         if (crossesClaimBoundary(event.getBlocks(), event.getDirection())) {
             event.setCancelled(true);
@@ -487,22 +576,24 @@ public class FactionListener implements Listener {
         // ==========================================
         // Flight check - disable flight when leaving own territory
         // ==========================================
-        if (player.getAllowFlight() && plugin.getConfigManager().isFlightAutoDisableOnExit()
+        if (player.getAllowFlight()
                 && player.getGameMode() != GameMode.CREATIVE && player.getGameMode() != GameMode.SPECTATOR) {
             // Disable flight if combat tagged and config says so
             if (plugin.getConfigManager().isCombatTagPreventFly() && plugin.getCombatManager().isTagged(player.getUniqueId())) {
                 player.setAllowFlight(false);
                 player.setFlying(false);
                 player.sendMessage(plugin.getMessageUtils().error("Flight disabled during combat!"));
-            }
-            Faction playerFaction = plugin.getFactionManager().getPlayerFaction(player.getUniqueId());
-            if (playerFaction == null || newOwnerId == null ||
-                !newOwnerId.equals(playerFaction.getFactionId())) {
-                // Not in own territory - disable flight
-                player.setAllowFlight(false);
-                player.setFlying(false);
-                if (plugin.getConfigManager().isFlightNotifyOnExit()) {
-                    player.sendMessage(plugin.getMessageUtils().error("Flight disabled outside your territory!"));
+            } else if (plugin.getConfigManager().isFlightAutoDisableOnExit()
+                    && plugin.getConfigManager().isFlightOwnTerritoryOnly()) {
+                Faction playerFaction = plugin.getFactionManager().getPlayerFaction(player.getUniqueId());
+                if (playerFaction == null || newOwnerId == null ||
+                    !newOwnerId.equals(playerFaction.getFactionId())) {
+                    // Not in own territory - disable flight
+                    player.setAllowFlight(false);
+                    player.setFlying(false);
+                    if (plugin.getConfigManager().isFlightNotifyOnExit()) {
+                        player.sendMessage(plugin.getMessageUtils().error("Flight disabled outside your territory!"));
+                    }
                 }
             }
         }

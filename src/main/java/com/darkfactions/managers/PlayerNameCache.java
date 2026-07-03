@@ -10,6 +10,7 @@ import org.bukkit.entity.Player;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.logging.Level;
 
 public class PlayerNameCache {
 
@@ -74,14 +75,25 @@ public class PlayerNameCache {
 
     public void saveToStoreAsync(SaveQueue queue) {
         if (!dirty.getAndSet(false)) return;
-        queue.submit(() -> flushToStore(queue.store()));
+        queue.submit(() -> {
+            try {
+                flushToStore(queue.store());
+            } catch (RuntimeException e) {
+                dirty.set(true);
+                plugin.getLogger().log(Level.SEVERE, "Player name cache save failed, will retry on the next save cycle", e);
+            }
+        });
     }
 
-    /** Synchronous save used during plugin shutdown; clears dirty only after write. */
+    /** Synchronous save used during plugin shutdown; clears dirty only after a confirmed write. */
     public void saveToStoreSync(DataStore store) {
         if (!dirty.get()) return;
-        flushToStore(store);
-        dirty.set(false);
+        try {
+            flushToStore(store);
+            dirty.set(false);
+        } catch (RuntimeException e) {
+            plugin.getLogger().log(Level.SEVERE, "Player name cache save failed during shutdown", e);
+        }
     }
 
     private void flushToStore(DataStore store) {

@@ -282,16 +282,29 @@ public class FactionTerritoryCommands extends AbstractFactionSubcommand {
     // ==========================================
     boolean handleFly(Player player) {
 
+        if (!plugin.getConfigManager().isFlightEnabled()) {
+            player.sendMessage(msg.error("Faction flight is disabled on this server!"));
+            return true;
+        }
+
         Faction faction = requireFaction(player);
         if (faction == null) return true;
 
-        // Check if they're in their own territory
-        Chunk chunk = player.getLocation().getChunk();
-        UUID ownerId = plugin.getClaimManager().getClaimOwner(chunk);
-
-        if (ownerId == null || !ownerId.equals(faction.getFactionId())) {
-            player.sendMessage(msg.error("You can only fly in your own faction's territory!"));
+        if (plugin.getConfigManager().isCombatTagPreventFly()
+                && plugin.getCombatManager().isTagged(player.getUniqueId())) {
+            player.sendMessage(msg.error("You cannot enable flight during combat!"));
             return true;
+        }
+
+        // Check if they're in their own territory (unless config allows flight anywhere)
+        if (plugin.getConfigManager().isFlightOwnTerritoryOnly()) {
+            Chunk chunk = player.getLocation().getChunk();
+            UUID ownerId = plugin.getClaimManager().getClaimOwner(chunk);
+
+            if (ownerId == null || !ownerId.equals(faction.getFactionId())) {
+                player.sendMessage(msg.error("You can only fly in your own faction's territory!"));
+                return true;
+            }
         }
 
         if (player.getAllowFlight()) {
@@ -313,22 +326,37 @@ public class FactionTerritoryCommands extends AbstractFactionSubcommand {
     // ==========================================
     boolean handleLogout(Player player) {
 
-        if (!plugin.getCombatManager().isTagged(player.getUniqueId())) {
-            player.sendMessage(msg.error("You are not in combat! Use /f logout to safely log out."));
+        UUID playerUuid = player.getUniqueId();
+
+        if (!plugin.getCombatManager().isTagged(playerUuid)) {
+            player.sendMessage(msg.error("You are not in combat! You can log out normally."));
             return true;
         }
 
         int warmup = plugin.getConfigManager().getCombatLogoutWarmup();
         if (warmup <= 0) {
+            // Clear the tag before kicking, or the quit handler punishes this
+            // legitimate logout as combat logging.
+            plugin.getCombatManager().clear(playerUuid);
             player.kick(Component.text("You have safely logged out."));
             return true;
         }
 
-        player.sendMessage(msg.info("Logging out in " + warmup + " seconds... don't move or take damage."));
+        // A fresh hit during the warmup pushes the tag expiry forward; compare
+        // against the expiry captured now to detect it and abort the logout.
+        long expiryAtStart = plugin.getCombatManager().getTagExpiry(playerUuid);
+
+        player.sendMessage(msg.info("Logging out in " + warmup + " seconds... don't take damage."));
         plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
-            if (player.isOnline() && plugin.getCombatManager().isTagged(player.getUniqueId())) {
-                player.kick(Component.text("You have safely logged out."));
+            if (!player.isOnline()) {
+                return;
             }
+            if (plugin.getCombatManager().getTagExpiry(playerUuid) > expiryAtStart) {
+                player.sendMessage(msg.error("Safe logout cancelled - you took damage!"));
+                return;
+            }
+            plugin.getCombatManager().clear(playerUuid);
+            player.kick(Component.text("You have safely logged out."));
         }, warmup * 20L);
 
         return true;

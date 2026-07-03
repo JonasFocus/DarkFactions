@@ -43,6 +43,13 @@ public class CombatManager {
         return remaining;
     }
 
+    // Raw tag expiry timestamp (0 if untagged). Lets callers detect a re-tag:
+    // a fresh hit always pushes the expiry forward.
+    public long getTagExpiry(UUID playerUuid) {
+        Long expiry = taggedPlayers.get(playerUuid);
+        return expiry != null ? expiry : 0L;
+    }
+
     public void clear(UUID playerUuid) {
         taggedPlayers.remove(playerUuid);
     }

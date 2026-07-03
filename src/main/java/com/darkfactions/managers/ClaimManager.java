@@ -363,9 +363,22 @@ public class ClaimManager {
     // ==========================================
 
     public void loadFromStore(DataStore store) {
-        claimMap.putAll(store.loadAllClaims());
-        for (UUID fid : claimMap.values()) {
-            factionClaimCount.merge(fid, 1, Integer::sum);
+        // Runs after FactionManager.loadFromStore, so faction lookups are live.
+        // Rows referencing a faction that no longer exists (e.g. a crash midway
+        // through a faction delete) are dropped and queued for deletion so the
+        // database self-heals on the next save cycle.
+        int orphans = 0;
+        for (Map.Entry<String, UUID> entry : store.loadAllClaims().entrySet()) {
+            if (plugin.getFactionManager().getFaction(entry.getValue()) == null) {
+                changes.recordDelete(entry.getKey());
+                orphans++;
+                continue;
+            }
+            claimMap.put(entry.getKey(), entry.getValue());
+            factionClaimCount.merge(entry.getValue(), 1, Integer::sum);
+        }
+        if (orphans > 0) {
+            plugin.getLogger().warning("Dropped " + orphans + " orphaned claim(s) referencing deleted factions.");
         }
         plugin.getLogger().info("Loaded " + claimMap.size() + " claims!");
     }

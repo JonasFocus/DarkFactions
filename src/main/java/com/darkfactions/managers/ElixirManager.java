@@ -21,6 +21,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.logging.Level;
 
 public class ElixirManager {
 
@@ -218,10 +219,18 @@ public class ElixirManager {
         List<UUID> toDelete = hasDeletions ? new ArrayList<>(pendingElixirDeletions) : List.of();
         pendingElixirDeletions.removeAll(toDelete);
 
-        queue.submit(() -> flushToStore(queue.store(), toDelete));
+        queue.submit(() -> {
+            try {
+                flushToStore(queue.store(), toDelete);
+            } catch (RuntimeException e) {
+                pendingElixirDeletions.addAll(toDelete);
+                pendingDirty.set(true);
+                plugin.getLogger().log(Level.SEVERE, "Elixir data save failed, will retry on the next save cycle", e);
+            }
+        });
     }
 
-    /** Synchronous save used during plugin shutdown; clears dirty only after write. */
+    /** Synchronous save used during plugin shutdown; clears dirty only after a confirmed write. */
     public void saveToStoreSync(DataStore store) {
         boolean hasDeletions = !pendingElixirDeletions.isEmpty();
         if (!pendingDirty.get() && !hasDeletions) return;
@@ -229,8 +238,13 @@ public class ElixirManager {
         List<UUID> toDelete = hasDeletions ? new ArrayList<>(pendingElixirDeletions) : List.of();
         pendingElixirDeletions.removeAll(toDelete);
 
-        flushToStore(store, toDelete);
-        pendingDirty.set(false);
+        try {
+            flushToStore(store, toDelete);
+            pendingDirty.set(false);
+        } catch (RuntimeException e) {
+            pendingElixirDeletions.addAll(toDelete);
+            plugin.getLogger().log(Level.SEVERE, "Elixir data save failed during shutdown", e);
+        }
     }
 
     private void flushToStore(DataStore store, List<UUID> toDelete) {

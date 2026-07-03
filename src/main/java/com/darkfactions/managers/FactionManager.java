@@ -24,6 +24,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.logging.Level;
 
 public class FactionManager {
 
@@ -318,16 +319,22 @@ public class FactionManager {
 
         queue.submit(() -> {
             DataStore store = queue.store();
-            for (UUID factionId : toDelete) {
-                store.deleteFaction(factionId);
-            }
-            for (Faction f : factions.values()) {
-                store.saveFaction(f);
+            try {
+                for (UUID factionId : toDelete) {
+                    store.deleteFaction(factionId);
+                }
+                for (Faction f : factions.values()) {
+                    store.saveFaction(f);
+                }
+            } catch (RuntimeException e) {
+                pendingDeletions.addAll(toDelete);
+                dirty.set(true);
+                plugin.getLogger().log(Level.SEVERE, "Faction save failed, will retry on the next save cycle", e);
             }
         });
     }
 
-    /** Synchronous save used during plugin shutdown; clears dirty only after write. */
+    /** Synchronous save used during plugin shutdown; clears dirty only after a confirmed write. */
     public void saveToStoreSync(DataStore store) {
         boolean hasDeletions = !pendingDeletions.isEmpty();
         if (!dirty.get() && !hasDeletions) return;
@@ -335,12 +342,17 @@ public class FactionManager {
         List<UUID> toDelete = hasDeletions ? new ArrayList<>(pendingDeletions) : List.of();
         pendingDeletions.removeAll(toDelete);
 
-        for (UUID factionId : toDelete) {
-            store.deleteFaction(factionId);
+        try {
+            for (UUID factionId : toDelete) {
+                store.deleteFaction(factionId);
+            }
+            for (Faction f : factions.values()) {
+                store.saveFaction(f);
+            }
+            dirty.set(false);
+        } catch (RuntimeException e) {
+            pendingDeletions.addAll(toDelete);
+            plugin.getLogger().log(Level.SEVERE, "Faction save failed during shutdown", e);
         }
-        for (Faction f : factions.values()) {
-            store.saveFaction(f);
-        }
-        dirty.set(false);
     }
 }

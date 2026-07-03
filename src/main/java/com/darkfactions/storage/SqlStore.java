@@ -123,6 +123,7 @@ public class SqlStore implements DataStore {
              ResultSet rs = s.executeQuery()) {
             return rs.next() ? rs.getInt(1) : 0;
         } catch (SQLException e) {
+            plugin.getLogger().log(Level.SEVERE, "Failed to read schema version", e);
             return 0;
         }
     }
@@ -392,6 +393,7 @@ public class SqlStore implements DataStore {
             }
         } catch (SQLException e) {
             plugin.getLogger().log(Level.SEVERE, "Failed to save faction " + faction.getName(), e);
+            throw new StorageException("Failed to save faction " + faction.getName(), e);
         }
     }
 
@@ -584,6 +586,7 @@ public class SqlStore implements DataStore {
             s.executeUpdate();
         } catch (SQLException e) {
             plugin.getLogger().log(Level.SEVERE, "SQL error: " + sql, e);
+            throw new StorageException("SQL error: " + sql, e);
         }
     }
 

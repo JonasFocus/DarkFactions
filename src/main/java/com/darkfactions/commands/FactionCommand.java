@@ -14,9 +14,6 @@ import java.util.UUID;
 
 public class FactionCommand implements CommandExecutor {
 
-    // Reference to main plugin
-    private final DarkFactions plugin;
-
     // Utility for sending fancy messages
     private final MessageUtils msg;
 
@@ -32,7 +29,6 @@ public class FactionCommand implements CommandExecutor {
     // Constructor
     // ==========================================
     public FactionCommand(DarkFactions plugin) {
-        this.plugin = plugin;
         this.msg = plugin.getMessageUtils();
         this.membershipCommands = new FactionMembershipCommands(plugin);
         this.territoryCommands = new FactionTerritoryCommands(plugin);
@@ -69,6 +65,14 @@ public class FactionCommand implements CommandExecutor {
         }
 
         Player player = (Player) sender;
+
+        // Base permission for all player faction commands. Declared in
+        // plugin.yml with default: true, so this only bites when a permissions
+        // plugin explicitly revokes it.
+        if (!player.hasPermission("darkfactions.use")) {
+            player.sendMessage(msg.error("You don't have permission to use faction commands!"));
+            return true;
+        }
 
         // ==========================================
         // Route to the right subcommand handler

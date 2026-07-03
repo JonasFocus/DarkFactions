@@ -6,6 +6,9 @@ package com.darkfactions.commands;
 // Makes it easier for players to use the plugin
 // ==========================================
 
+import com.darkfactions.DarkFactions;
+import com.darkfactions.models.Faction;
+
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
@@ -17,6 +20,12 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 public class FactionTabCompleter implements TabCompleter {
+
+    private final DarkFactions plugin;
+
+    public FactionTabCompleter(DarkFactions plugin) {
+        this.plugin = plugin;
+    }
 
     // List of all subcommands for tab completion
     private static final List<String> SUBCOMMANDS = Arrays.asList(
@@ -102,13 +111,21 @@ public class FactionTabCompleter implements TabCompleter {
             }
 
             if (subCmd.equals("who") || subCmd.equals("info")) {
-                return Arrays.asList("<player_or_faction>");
+                String partial = args[1].toLowerCase();
+                List<String> suggestions = new ArrayList<>();
+                for (Player online : player.getServer().getOnlinePlayers()) {
+                    if (online.getName().toLowerCase().startsWith(partial)) {
+                        suggestions.add(online.getName());
+                    }
+                }
+                suggestions.addAll(factionNameSuggestions(args[1]));
+                return suggestions;
             }
 
             if (subCmd.equals("show") || subCmd.equals("ally") ||
                 subCmd.equals("enemy") || subCmd.equals("neutral") ||
                 subCmd.equals("accept") || subCmd.equals("deny")) {
-                return Arrays.asList("<faction>");
+                return factionNameSuggestions(args[1]);
             }
 
             if (subCmd.equals("top")) {
@@ -132,7 +149,7 @@ public class FactionTabCompleter implements TabCompleter {
             }
 
             if (subCmd.equals("elixirbal") || subCmd.equals("bal")) {
-                return Arrays.asList("<faction>");
+                return factionNameSuggestions(args[1]);
             }
 
             if (subCmd.equals("shop")) {
@@ -140,7 +157,7 @@ public class FactionTabCompleter implements TabCompleter {
             }
 
             if (subCmd.equals("transfer")) {
-                return Arrays.asList("<faction>");
+                return factionNameSuggestions(args[1]);
             }
         }
 
@@ -151,7 +168,7 @@ public class FactionTabCompleter implements TabCompleter {
                 // All four admin subcommands take a faction name as their next arg.
                 if (adminSub.equals("power") || adminSub.equals("elixir") ||
                     adminSub.equals("remove") || adminSub.equals("claim")) {
-                    return Arrays.asList("<faction>");
+                    return factionNameSuggestions(args[2]);
                 }
             }
 
@@ -170,5 +187,13 @@ public class FactionTabCompleter implements TabCompleter {
         }
 
         return new ArrayList<>();
+    }
+
+    private List<String> factionNameSuggestions(String partial) {
+        String lower = partial.toLowerCase();
+        return plugin.getFactionManager().getAllFactions().stream()
+                .map(Faction::getName)
+                .filter(name -> name.toLowerCase().startsWith(lower))
+                .collect(Collectors.toList());
     }
 }

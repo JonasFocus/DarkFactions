@@ -328,6 +328,13 @@ public class FactionSocialCommands extends AbstractFactionSubcommand {
 
         if (!requireArgs(player, args, 2, "/f enemy <faction>")) return true;
 
+        // Same node as /f ally: plugin.yml describes darkfactions.ally as
+        // managing alliances, which covers all relation changes.
+        if (!player.hasPermission("darkfactions.ally")) {
+            player.sendMessage(msg.error("You don't have permission to manage relations!"));
+            return true;
+        }
+
         Faction faction = requireFaction(player);
         if (faction == null) return true;
 
@@ -372,6 +379,11 @@ public class FactionSocialCommands extends AbstractFactionSubcommand {
     boolean handleNeutral(Player player, String[] args) {
 
         if (!requireArgs(player, args, 2, "/f neutral <faction>")) return true;
+
+        if (!player.hasPermission("darkfactions.ally")) {
+            player.sendMessage(msg.error("You don't have permission to manage relations!"));
+            return true;
+        }
 
         Faction faction = requireFaction(player);
         if (faction == null) return true;

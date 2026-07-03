@@ -21,8 +21,6 @@ import java.util.logging.Level;
 
 public class SqlStore implements DataStore {
 
-    private static final int SCHEMA_VERSION = 2;
-
     // Role values stored in faction_members.role
     private static final String ROLE_LEADER = "LEADER";
     private static final String ROLE_OFFICER = "OFFICER";

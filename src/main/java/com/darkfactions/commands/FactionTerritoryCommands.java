@@ -314,7 +314,9 @@ public class FactionTerritoryCommands extends AbstractFactionSubcommand {
         } else {
             player.setAllowFlight(true);
             player.setFlying(true);
-            player.sendMessage(msg.success("Flight enabled in your territory!"));
+            player.sendMessage(msg.success(plugin.getConfigManager().isFlightOwnTerritoryOnly()
+                    ? "Flight enabled in your territory!"
+                    : "Flight enabled!"));
         }
 
         return true;

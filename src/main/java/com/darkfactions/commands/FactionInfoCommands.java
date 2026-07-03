@@ -47,6 +47,9 @@ public class FactionInfoCommands extends AbstractFactionSubcommand {
         player.sendMessage(msg.help("/f top [power|elixir]", "Show faction leaderboard"));
         player.sendMessage(msg.help("/f power", "Show your faction's power"));
         player.sendMessage(msg.help("/f elixir", "Show your faction's elixir"));
+        player.sendMessage(msg.help("/f bal [faction]", "Show a faction's elixir balance"));
+        player.sendMessage(msg.help("/f shop", "Spend elixir on faction upgrades"));
+        player.sendMessage(msg.help("/f transfer <faction> <amount>", "Send elixir to another faction"));
         player.sendMessage(msg.help("/f motd <message>", "Set faction message of the day"));
         player.sendMessage(msg.help("/f desc <text>", "Set faction description"));
         player.sendMessage(msg.help("/f tag <tag>", "Set faction prefix tag"));
@@ -59,6 +62,11 @@ public class FactionInfoCommands extends AbstractFactionSubcommand {
         player.sendMessage(msg.help("/f enemy <faction>", "Declare enemy"));
         player.sendMessage(msg.help("/f neutral <faction>", "Set neutral"));
         player.sendMessage(msg.help("/f fly", "Toggle flight in own territory"));
+        player.sendMessage(msg.help("/f logout", "Safely log out while combat tagged"));
+        if (player.hasPermission("darkfactions.admin")) {
+            player.sendMessage(msg.help("/f admin", "Admin faction management"));
+            player.sendMessage(msg.help("/f reload", "Reload the plugin config"));
+        }
     }
 
     // ==========================================

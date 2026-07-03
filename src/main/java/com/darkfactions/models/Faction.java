@@ -15,14 +15,20 @@ import java.util.UUID;
 
 public class Faction {
 
+    // Scalar fields are volatile for the same reason the sets below are
+    // synchronized: the main thread is the only writer, but the async SaveQueue
+    // worker (and the async chat listener) read them mid-save. Without volatile
+    // there is no happens-before edge, so a save could persist stale or (for
+    // the 64-bit double/long fields) torn values.
+
     // Unique identifier for this faction - used for saving/loading
-    private UUID factionId;
+    private volatile UUID factionId;
 
     // The name of the faction (e.g. "Warriors", "DarkElite")
-    private String name;
+    private volatile String name;
 
     // Who created the faction - they are the leader by default
-    private UUID leaderUuid;
+    private volatile UUID leaderUuid;
 
     // Members, officers, enemies and allies keyed by UUID. Stored as sets so
     // membership tests are O(1) and duplicates can't sneak in, wrapped in a
@@ -34,53 +40,53 @@ public class Faction {
     private Set<UUID> allies;
 
     // Where the faction home is located (null if not set)
-    private String worldName;
-    private double homeX;
-    private double homeY;
-    private double homeZ;
-    private float homeYaw;
-    private float homePitch;
+    private volatile String worldName;
+    private volatile double homeX;
+    private volatile double homeY;
+    private volatile double homeZ;
+    private volatile float homeYaw;
+    private volatile float homePitch;
 
     /**
      * Admin/shop bonus power added on top of the sum of member player power.
      * Persisted as {@code bonus_power}; the legacy {@code power} column is no longer read.
      */
-    private double bonusPower;
+    private volatile double bonusPower;
 
     /**
      * Bonus max power from shop upgrades, added on top of the sum of member max player power.
      * Persisted as {@code max_power}.
      */
-    private double maxPower;
+    private volatile double maxPower;
 
     // When this faction was created, in epoch milliseconds (System.currentTimeMillis()).
     // Consumers wrap this directly in java.util.Date, so it must stay millis, not seconds.
-    private long creationTime;
+    private volatile long creationTime;
 
     // Elixir points - basically faction currency/points
-    private double elixir;
+    private volatile double elixir;
 
     // Whether the faction is open for anyone to join
-    private boolean open;
+    private volatile boolean open;
 
     // ==========================================
     // NEW FIELDS - Adding more faction features
     // ==========================================
 
     // Faction message of the day (shown when members log in)
-    private String motd;
+    private volatile String motd;
 
     // Short description of the faction
-    private String description;
+    private volatile String description;
 
     // Faction tag/prefix (e.g. "[WAR]") shown before member names
-    private String tag;
+    private volatile String tag;
 
     // PvP toggle - if false, faction members cant hurt each other
-    private boolean pvpEnabled;
+    private volatile boolean pvpEnabled;
 
     // TNT toggle - if false, TNT does no damage in faction territory
-    private boolean tntEnabled;
+    private volatile boolean tntEnabled;
 
     // ==========================================
     // Constructor - Makes a brand new faction!

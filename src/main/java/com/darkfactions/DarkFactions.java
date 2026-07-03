@@ -101,7 +101,10 @@ public class DarkFactions extends JavaPlugin {
                 dataStore.setSchemaVersion(2);
             }
 
-            this.saveQueue = new SaveQueue(dataStore, 2);
+            // Single worker: SQLite serializes writes through one pooled connection
+            // anyway, and a one-thread queue makes flushAndAwait's sentinel task a
+            // true barrier for everything submitted before it.
+            this.saveQueue = new SaveQueue(dataStore, 1);
 
             getLogger().info("Database initialized (" + dbType + ")");
             return true;

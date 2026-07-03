@@ -31,6 +31,9 @@ public class SaveQueue {
     /**
      * Blocks until all tasks submitted before this call finish, or times out.
      * Used during shutdown after synchronous saves to drain remaining async work.
+     * Only a true barrier when the queue has a single worker thread (the sentinel
+     * task could otherwise overtake an in-flight save on another worker), which is
+     * how DarkFactions constructs it.
      */
     public void flushAndAwait(long timeout, TimeUnit unit) {
         try {

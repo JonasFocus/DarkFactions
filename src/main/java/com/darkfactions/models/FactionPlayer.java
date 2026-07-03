@@ -7,27 +7,32 @@ import java.util.UUID;
 
 public class FactionPlayer {
 
+    // All fields are volatile: the main thread is the only writer, but the
+    // async SaveQueue worker reads them mid-save. Without volatile there is no
+    // happens-before edge, so the persisted row could hold stale or (for the
+    // 64-bit double/long fields) torn values.
+
     // The player's Minecraft UUID
-    private UUID playerUuid;
+    private volatile UUID playerUuid;
 
     // The faction this player belongs to (null if no faction)
-    private UUID factionId;
+    private volatile UUID factionId;
 
     // Player's individual power (contributes to faction power)
-    private double power;
+    private volatile double power;
 
     // Player's maximum power cap
-    private double maxPower;
+    private volatile double maxPower;
 
     // Track kills and deaths for power calculations
-    private int kills;
-    private int deaths;
+    private volatile int kills;
+    private volatile int deaths;
 
     // When the player last logged in (for power regen)
-    private long lastLoginTime;
+    private volatile long lastLoginTime;
 
     // When the player last logged out (for power decay offline)
-    private long lastLogoutTime;
+    private volatile long lastLogoutTime;
 
     public FactionPlayer(UUID playerUuid) {
         this.playerUuid = playerUuid;

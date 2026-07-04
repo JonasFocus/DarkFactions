@@ -246,6 +246,8 @@ public class FactionListener implements Listener {
                 && victimFaction.getFactionId().equals(attackerFaction.getFactionId());
         boolean ally = victimFaction != null && attackerFaction != null
                 && victimFaction.isAlly(attackerFaction.getFactionId());
+        boolean attackerIsEnemy = victimFaction != null && attackerFaction != null
+                && victimFaction.isEnemy(attackerFaction.getFactionId());
 
         Chunk chunk = victim.getLocation().getChunk();
         UUID chunkOwner = plugin.getClaimManager().getClaimOwner(chunk);
@@ -256,6 +258,8 @@ public class FactionListener implements Listener {
                 plugin.getConfigManager().isRespectFactionPvpToggle(),
                 victimFaction != null && victimFaction.isPvpEnabled(),
                 ally,
+                attackerFaction != null,
+                attackerIsEnemy,
                 territory,
                 plugin.getConfigManager().isWildernessPvp(),
                 plugin.getConfigManager().isOwnTerritoryPvp(),
@@ -275,6 +279,11 @@ public class FactionListener implements Listener {
             }
             case DENY_TERRITORY -> {
                 event.setCancelled(true);
+                return;
+            }
+            case ALLOW_NO_TAG -> {
+                // Sparring with a non-enemy in your own territory: allow the hit,
+                // but skip combat tagging (no flight-lock, no combat-log punishment).
                 return;
             }
             case ALLOW -> {

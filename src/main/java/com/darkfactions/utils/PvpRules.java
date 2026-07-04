@@ -15,6 +15,9 @@ public final class PvpRules {
 
     public enum Verdict {
         ALLOW,
+        // Allow the hit but skip combat tagging: sparring with a non-enemy in your
+        // own territory shouldn't trigger flight-lock or combat-log punishment.
+        ALLOW_NO_TAG,
         DENY_FACTION_PVP_DISABLED,
         DENY_ALLY,
         DENY_TERRITORY
@@ -24,12 +27,14 @@ public final class PvpRules {
     }
 
     /**
-     * Resolves whether an attack should be allowed.
+     * Resolves whether an attack should be allowed, and whether it should combat-tag.
      *
      * @param sameFaction              true when attacker and victim share a faction
      * @param respectFactionPvpToggle  config flag gating same-faction friendly fire
      * @param victimFactionPvpEnabled  the victim faction's own PvP toggle
      * @param ally                     true when attacker's faction is allied with victim's
+     * @param attackerHasFaction       true when the attacker belongs to a faction
+     * @param attackerIsEnemy          true when the attacker's faction is an enemy of the victim's
      * @param territory                the territory the victim is standing in
      * @param wildernessPvp            config flag allowing PvP in unclaimed land
      * @param ownTerritoryPvp          config flag allowing PvP in the victim's own claims
@@ -40,6 +45,8 @@ public final class PvpRules {
                                    boolean respectFactionPvpToggle,
                                    boolean victimFactionPvpEnabled,
                                    boolean ally,
+                                   boolean attackerHasFaction,
+                                   boolean attackerIsEnemy,
                                    Territory territory,
                                    boolean wildernessPvp,
                                    boolean ownTerritoryPvp,
@@ -57,6 +64,12 @@ public final class PvpRules {
             case ALLY -> allyTerritoryPvp;
             case OTHER -> enemyTerritoryPvp;
         };
-        return allowed ? Verdict.ALLOW : Verdict.DENY_TERRITORY;
+        if (!allowed) {
+            return Verdict.DENY_TERRITORY;
+        }
+        if (territory == Territory.OWN && attackerHasFaction && !attackerIsEnemy) {
+            return Verdict.ALLOW_NO_TAG;
+        }
+        return Verdict.ALLOW;
     }
 }

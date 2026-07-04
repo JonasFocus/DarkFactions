@@ -18,7 +18,6 @@ public interface DataStore {
 
     // Factions
     Collection<Faction> loadAllFactions();
-    Map<UUID, UUID> loadPlayerFactionMap();
     void saveFaction(Faction faction);
     void deleteFaction(UUID factionId);
 

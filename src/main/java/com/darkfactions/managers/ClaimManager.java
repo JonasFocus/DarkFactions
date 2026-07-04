@@ -36,7 +36,7 @@ public class ClaimManager {
 
     private final DarkFactions plugin;
     private final Map<String, UUID> claimMap;
-    private final Map<UUID, Integer> factionClaimCount;
+    private final Map<UUID, Set<String>> claimsByFaction;
     private final Set<UUID> bypassPlayers;
 
     // Pending claim writes/deletes awaiting the next async flush. Tracking deletes
@@ -56,7 +56,7 @@ public class ClaimManager {
     public ClaimManager(DarkFactions plugin) {
         this.plugin = plugin;
         this.claimMap = new ConcurrentHashMap<>();
-        this.factionClaimCount = new ConcurrentHashMap<>();
+        this.claimsByFaction = new ConcurrentHashMap<>();
         this.bypassPlayers = new HashSet<>();
         this.changes = new ClaimChangeSet();
         reloadConfig();
@@ -141,7 +141,7 @@ public class ClaimManager {
             return ClaimResult.BUFFER_VIOLATION;
         }
 
-        int currentClaims = factionClaimCount.getOrDefault(factionId, 0);
+        int currentClaims = getClaimCount(factionId);
 
         // Connection check (skip for first claim if firstClaimFree is on)
         if (requireConnection && currentClaims > 0 && !isAdjacentToClaim(chunk, factionId)) {
@@ -165,7 +165,7 @@ public class ClaimManager {
         // Claim it!
         String key = chunkToKey(chunk);
         claimMap.put(key, factionId);
-        factionClaimCount.merge(factionId, 1, Integer::sum);
+        claimsByFaction.computeIfAbsent(factionId, id -> ConcurrentHashMap.newKeySet()).add(key);
 
         // Give elixir for claiming
         double chunkElixirReward = plugin.getConfigManager().getElixirPerChunkClaim();
@@ -186,10 +186,10 @@ public class ClaimManager {
         UUID factionId = claimMap.remove(key);
 
         if (factionId != null) {
-            factionClaimCount.merge(factionId, -1, Integer::sum);
-            if (factionClaimCount.get(factionId) <= 0) {
-                factionClaimCount.remove(factionId);
-            }
+            claimsByFaction.computeIfPresent(factionId, (id, keys) -> {
+                keys.remove(key);
+                return keys.isEmpty() ? null : keys;
+            });
 
             // Lose elixir for unclaiming — skip silently if the faction doesn't
             // have enough, rather than blocking the unclaim entirely.
@@ -221,7 +221,7 @@ public class ClaimManager {
             changes.recordDelete(key);
         }
 
-        factionClaimCount.remove(factionId);
+        claimsByFaction.remove(factionId);
 
         return toRemove.size();
     }
@@ -260,17 +260,13 @@ public class ClaimManager {
     }
 
     public int getClaimCount(UUID factionId) {
-        return factionClaimCount.getOrDefault(factionId, 0);
+        Set<String> keys = claimsByFaction.get(factionId);
+        return keys == null ? 0 : keys.size();
     }
 
     public List<String> getFactionClaims(UUID factionId) {
-        List<String> results = new ArrayList<>();
-        for (Map.Entry<String, UUID> entry : claimMap.entrySet()) {
-            if (entry.getValue().equals(factionId)) {
-                results.add(entry.getKey());
-            }
-        }
-        return results;
+        Set<String> keys = claimsByFaction.get(factionId);
+        return keys == null ? new ArrayList<>() : new ArrayList<>(keys);
     }
 
     // ==========================================
@@ -374,7 +370,7 @@ public class ClaimManager {
                 continue;
             }
             claimMap.put(entry.getKey(), entry.getValue());
-            factionClaimCount.merge(entry.getValue(), 1, Integer::sum);
+            claimsByFaction.computeIfAbsent(entry.getValue(), id -> ConcurrentHashMap.newKeySet()).add(entry.getKey());
         }
         if (orphans > 0) {
             plugin.getLogger().warning("Dropped " + orphans + " orphaned claim(s) referencing deleted factions.");

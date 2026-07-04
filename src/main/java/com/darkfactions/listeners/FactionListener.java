@@ -12,6 +12,7 @@ import com.darkfactions.managers.ClaimResult;
 import com.darkfactions.models.Faction;
 import com.darkfactions.utils.ChatFormatter;
 import com.darkfactions.utils.ProtectionRules;
+import com.darkfactions.utils.PvpRules;
 import com.darkfactions.utils.TerritoryMessageFormatter;
 
 import org.bukkit.Chunk;
@@ -241,57 +242,43 @@ public class FactionListener implements Listener {
             return;
         }
 
-        // Same faction check
-        if (victimFaction != null && attackerFaction != null &&
-            victimFaction.getFactionId().equals(attackerFaction.getFactionId())) {
+        boolean sameFaction = victimFaction != null && attackerFaction != null
+                && victimFaction.getFactionId().equals(attackerFaction.getFactionId());
+        boolean ally = victimFaction != null && attackerFaction != null
+                && victimFaction.isAlly(attackerFaction.getFactionId());
 
-            // Check if faction PvP is enabled (respect config toggle)
-            if (plugin.getConfigManager().isRespectFactionPvpToggle() && !victimFaction.isPvpEnabled()) {
+        Chunk chunk = victim.getLocation().getChunk();
+        UUID chunkOwner = plugin.getClaimManager().getClaimOwner(chunk);
+        PvpRules.Territory territory = resolveTerritory(chunkOwner, victimFaction);
+
+        PvpRules.Verdict verdict = PvpRules.resolve(
+                sameFaction,
+                plugin.getConfigManager().isRespectFactionPvpToggle(),
+                victimFaction != null && victimFaction.isPvpEnabled(),
+                ally,
+                territory,
+                plugin.getConfigManager().isWildernessPvp(),
+                plugin.getConfigManager().isOwnTerritoryPvp(),
+                plugin.getConfigManager().isAllyTerritoryPvp(),
+                plugin.getConfigManager().isEnemyTerritoryPvp());
+
+        switch (verdict) {
+            case DENY_FACTION_PVP_DISABLED -> {
                 event.setCancelled(true);
                 attacker.sendMessage(plugin.getMessageUtils().error("Faction PvP is disabled!"));
                 return;
             }
-        }
-
-        // Ally check - allies should not be able to hurt each other
-        if (victimFaction != null && attackerFaction != null &&
-            victimFaction.isAlly(attackerFaction.getFactionId())) {
-            event.setCancelled(true);
-            attacker.sendMessage(plugin.getMessageUtils().error("You cannot hurt your allies!"));
-            return;
-        }
-
-        // Territory check: enforce PvP config per territory type
-        Chunk chunk = victim.getLocation().getChunk();
-        UUID chunkOwner = plugin.getClaimManager().getClaimOwner(chunk);
-
-        if (chunkOwner == null) {
-            // Wilderness — respect wilderness PvP toggle
-            if (!plugin.getConfigManager().isWildernessPvp()) {
+            case DENY_ALLY -> {
+                event.setCancelled(true);
+                attacker.sendMessage(plugin.getMessageUtils().error("You cannot hurt your allies!"));
+                return;
+            }
+            case DENY_TERRITORY -> {
                 event.setCancelled(true);
                 return;
             }
-        } else if (victimFaction != null && chunkOwner.equals(victimFaction.getFactionId())) {
-            // Victim is in their own territory
-            if (!plugin.getConfigManager().isOwnTerritoryPvp()) {
-                event.setCancelled(true);
-                return;
-            }
-            // Allow non-enemies within own territory (standard factions behavior)
-            if (attackerFaction != null && !victimFaction.isEnemy(attackerFaction.getFactionId())) {
-                return;
-            }
-        } else if (victimFaction != null && victimFaction.isAlly(chunkOwner)) {
-            // Victim is in allied territory
-            if (!plugin.getConfigManager().isAllyTerritoryPvp()) {
-                event.setCancelled(true);
-                return;
-            }
-        } else if (chunkOwner != null) {
-            // Victim is in enemy/unaffiliated territory
-            if (!plugin.getConfigManager().isEnemyTerritoryPvp()) {
-                event.setCancelled(true);
-                return;
+            case ALLOW -> {
+                // fall through to combat tagging below
             }
         }
 
@@ -301,6 +288,21 @@ public class FactionListener implements Listener {
 
         // Cancel any pending home teleport for the victim
         plugin.getFactionCommand().cancelWarmup(victim.getUniqueId(), true);
+    }
+
+    // Classifies the victim's chunk relative to their own faction: unclaimed,
+    // their own territory, an ally's, or enemy/unaffiliated territory.
+    private static PvpRules.Territory resolveTerritory(UUID chunkOwner, Faction victimFaction) {
+        if (chunkOwner == null) {
+            return PvpRules.Territory.WILDERNESS;
+        }
+        if (victimFaction != null && chunkOwner.equals(victimFaction.getFactionId())) {
+            return PvpRules.Territory.OWN;
+        }
+        if (victimFaction != null && victimFaction.isAlly(chunkOwner)) {
+            return PvpRules.Territory.ALLY;
+        }
+        return PvpRules.Territory.OTHER;
     }
 
     // Cancel home warmup on any damage (environmental, fall, fire, etc.) when configured.

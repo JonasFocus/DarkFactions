@@ -88,6 +88,8 @@ public class SqlStore implements DataStore {
                 + "max_power DOUBLE DEFAULT 10,"
                 + "kills INT DEFAULT 0,"
                 + "deaths INT DEFAULT 0,"
+                // Legacy, unused: faction_members is the sole source of truth for membership.
+                // Left in place rather than dropped to avoid a schema migration.
                 + "faction VARCHAR(36),"
                 + "last_login BIGINT DEFAULT 0,"
                 + "last_logout BIGINT DEFAULT 0"
@@ -279,23 +281,6 @@ public class SqlStore implements DataStore {
         }
 
         return result.values();
-    }
-
-    @Override
-    public Map<UUID, UUID> loadPlayerFactionMap() {
-        Map<UUID, UUID> map = new HashMap<>();
-        String sql = "SELECT player_uuid, faction_id FROM faction_members";
-        try (Connection c = db.getConnection();
-             PreparedStatement s = c.prepareStatement(sql);
-             ResultSet rs = s.executeQuery()) {
-            while (rs.next()) {
-                map.put(UUID.fromString(rs.getString("player_uuid")),
-                        UUID.fromString(rs.getString("faction_id")));
-            }
-        } catch (SQLException e) {
-            plugin.getLogger().log(Level.SEVERE, "Failed to load player faction map", e);
-        }
-        return map;
     }
 
     @Override
@@ -491,10 +476,6 @@ public class SqlStore implements DataStore {
                 p.setDeaths(rs.getInt("deaths"));
                 p.setLastLoginTime(rs.getLong("last_login"));
                 p.setLastLogoutTime(rs.getLong("last_logout"));
-                String fid = rs.getString("faction");
-                if (fid != null && !fid.isEmpty()) {
-                    p.setFactionId(UUID.fromString(fid));
-                }
                 map.put(p.getPlayerUuid(), p);
             }
         } catch (SQLException e) {
@@ -505,14 +486,13 @@ public class SqlStore implements DataStore {
 
     @Override
     public void savePlayerData(FactionPlayer data) {
-        execute("REPLACE INTO player_data (uuid, power, max_power, kills, deaths, faction, last_login, last_logout) "
-                        + "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        execute("REPLACE INTO player_data (uuid, power, max_power, kills, deaths, last_login, last_logout) "
+                        + "VALUES (?, ?, ?, ?, ?, ?, ?)",
                 data.getPlayerUuid().toString(),
                 data.getPower(),
                 data.getMaxPower(),
                 data.getKills(),
                 data.getDeaths(),
-                data.getFactionId() != null ? data.getFactionId().toString() : null,
                 data.getLastLoginTime(),
                 data.getLastLogoutTime());
     }

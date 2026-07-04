@@ -15,9 +15,6 @@ public class FactionPlayer {
     // The player's Minecraft UUID
     private volatile UUID playerUuid;
 
-    // The faction this player belongs to (null if no faction)
-    private volatile UUID factionId;
-
     // Player's individual power (contributes to faction power)
     private volatile double power;
 
@@ -59,14 +56,6 @@ public class FactionPlayer {
 
     public void setPlayerUuid(UUID playerUuid) {
         this.playerUuid = playerUuid;
-    }
-
-    public UUID getFactionId() {
-        return factionId;
-    }
-
-    public void setFactionId(UUID factionId) {
-        this.factionId = factionId;
     }
 
     public double getPower() {

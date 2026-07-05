@@ -10,6 +10,7 @@ import com.darkfactions.utils.MessageUtils;
 import net.kyori.adventure.text.Component;
 
 import org.bukkit.Bukkit;
+import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
 import java.util.UUID;
@@ -54,6 +55,15 @@ public abstract class AbstractFactionSubcommand {
     protected boolean requireArgs(Player player, String[] args, int min, String usage) {
         if (args.length < min) {
             player.sendMessage(msg.error("Usage: " + usage));
+            return false;
+        }
+        return true;
+    }
+
+    // CommandSender variant of requireArgs, for subcommands reachable from the console.
+    protected boolean requireArgs(CommandSender sender, String[] args, int min, String usage) {
+        if (args.length < min) {
+            sender.sendMessage(msg.error("Usage: " + usage));
             return false;
         }
         return true;

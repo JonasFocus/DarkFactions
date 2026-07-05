@@ -64,7 +64,6 @@ public class FactionSocialCommands extends AbstractFactionSubcommand {
         }
 
         faction.setMotd(motdText);
-        plugin.getFactionManager().markDirty();
         player.sendMessage(msg.success("Faction MOTD has been updated!"));
 
         return true;
@@ -104,7 +103,6 @@ public class FactionSocialCommands extends AbstractFactionSubcommand {
         }
 
         faction.setDescription(descText);
-        plugin.getFactionManager().markDirty();
         player.sendMessage(msg.success("Faction description has been updated!"));
 
         return true;
@@ -140,7 +138,6 @@ public class FactionSocialCommands extends AbstractFactionSubcommand {
         }
 
         faction.setTag(tag);
-        plugin.getFactionManager().markDirty();
         player.sendMessage(msg.success("Faction tag set to [" + tag + "]!"));
 
         return true;
@@ -159,7 +156,6 @@ public class FactionSocialCommands extends AbstractFactionSubcommand {
 
         boolean newState = !faction.isOpen();
         faction.setOpen(newState);
-        plugin.getFactionManager().markDirty();
 
         if (newState) {
             player.sendMessage(msg.success("Faction is now open! Anyone can join."));
@@ -183,7 +179,6 @@ public class FactionSocialCommands extends AbstractFactionSubcommand {
 
         boolean newState = !faction.isPvpEnabled();
         faction.setPvpEnabled(newState);
-        plugin.getFactionManager().markDirty();
 
         if (newState) {
             player.sendMessage(msg.warning("Faction PvP enabled! Members can now hurt each other."));
@@ -207,7 +202,6 @@ public class FactionSocialCommands extends AbstractFactionSubcommand {
 
         boolean newState = !faction.isTntEnabled();
         faction.setTntEnabled(newState);
-        plugin.getFactionManager().markDirty();
 
         if (newState) {
             player.sendMessage(msg.warning("TNT enabled in faction territory!"));
@@ -309,7 +303,6 @@ public class FactionSocialCommands extends AbstractFactionSubcommand {
 
         faction.addAlly(targetFaction.getFactionId());
         targetFaction.addAlly(faction.getFactionId());
-        plugin.getFactionManager().markDirty();
 
         player.sendMessage(msg.success("You are now allied with " + targetFaction.getName() + "!"));
         broadcastToFaction(targetFaction, msg.info(
@@ -361,7 +354,6 @@ public class FactionSocialCommands extends AbstractFactionSubcommand {
 
         faction.addEnemy(targetFaction.getFactionId());
         targetFaction.addEnemy(faction.getFactionId());
-        plugin.getFactionManager().markDirty();
 
         player.sendMessage(msg.warning("You have declared " + targetFaction.getName() + " as an enemy!"));
         broadcastToFaction(targetFaction, msg.warning(
@@ -400,7 +392,6 @@ public class FactionSocialCommands extends AbstractFactionSubcommand {
         faction.removeAlly(targetFaction.getFactionId());
         targetFaction.removeEnemy(faction.getFactionId());
         targetFaction.removeAlly(faction.getFactionId());
-        plugin.getFactionManager().markDirty();
 
         player.sendMessage(msg.info("You are now neutral with " + targetFaction.getName() + "."));
 

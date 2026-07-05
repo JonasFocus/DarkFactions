@@ -133,4 +133,93 @@ class FactionTest {
         assertEquals(2, faction.getMemberCount());
         assertTrue(faction.isMember(a));
     }
+
+    @Test
+    void newFactionStartsDirtySoItGetsSavedAtLeastOnce() {
+        Faction faction = new Faction("Warriors", UUID.randomUUID());
+        assertTrue(faction.isDirty());
+    }
+
+    @Test
+    void clearDirtyThenMutatingMarksItDirtyAgain() {
+        Faction faction = new Faction("Warriors", UUID.randomUUID());
+        faction.clearDirty();
+        assertFalse(faction.isDirty());
+
+        faction.addElixir(10.0);
+
+        assertTrue(faction.isDirty());
+    }
+
+    @Test
+    void clearDirtyWithoutFurtherMutationStaysClean() {
+        Faction faction = new Faction("Warriors", UUID.randomUUID());
+        faction.clearDirty();
+
+        assertFalse(faction.isDirty());
+    }
+
+    @Test
+    void removeElixirOnlyMarksDirtyOnSuccess() {
+        Faction faction = new Faction("Warriors", UUID.randomUUID());
+        faction.clearDirty();
+
+        assertFalse(faction.removeElixir(5.0)); // insufficient balance
+        assertFalse(faction.isDirty());
+
+        faction.addElixir(5.0);
+        faction.clearDirty();
+        assertTrue(faction.removeElixir(5.0));
+        assertTrue(faction.isDirty());
+    }
+
+    @Test
+    void toggleSettersMarkDirty() {
+        Faction faction = new Faction("Warriors", UUID.randomUUID());
+
+        faction.clearDirty();
+        faction.setElixir(42.0);
+        assertTrue(faction.isDirty());
+
+        faction.clearDirty();
+        faction.setOpen(true);
+        assertTrue(faction.isDirty());
+
+        faction.clearDirty();
+        faction.setPvpEnabled(true);
+        assertTrue(faction.isDirty());
+
+        faction.clearDirty();
+        faction.setTntEnabled(true);
+        assertTrue(faction.isDirty());
+    }
+
+    @Test
+    void homeSettersMarkDirty() {
+        Faction faction = new Faction("Warriors", UUID.randomUUID());
+
+        faction.clearDirty();
+        faction.setWorldName("world");
+        assertTrue(faction.isDirty());
+
+        faction.clearDirty();
+        faction.setHomeX(1.0);
+        assertTrue(faction.isDirty());
+
+        faction.clearDirty();
+        faction.setHomeY(2.0);
+        assertTrue(faction.isDirty());
+
+        faction.clearDirty();
+        faction.setHomeZ(3.0);
+        assertTrue(faction.isDirty());
+
+        faction.clearDirty();
+        faction.setHomeYaw(4.0f);
+        assertTrue(faction.isDirty());
+
+        faction.clearDirty();
+        faction.setHomePitch(5.0f);
+        assertTrue(faction.isDirty());
+    }
 }

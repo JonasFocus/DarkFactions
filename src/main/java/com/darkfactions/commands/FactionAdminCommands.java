@@ -12,6 +12,7 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
 import java.util.List;
+import java.util.function.ObjDoubleConsumer;
 
 public class FactionAdminCommands extends AbstractFactionSubcommand {
 
@@ -46,89 +47,48 @@ public class FactionAdminCommands extends AbstractFactionSubcommand {
 
         String adminSub = args[1].toLowerCase();
 
+        // "list" renders with the player's own faction tag; "claim" and "bypass"
+        // need a Player for location/permission state. Everything else is
+        // shared with the console admin path in handleAdminCommand.
         switch (adminSub) {
             case "list":
                 return infoCommands.handleList(player);
-
-            case "power":
-                if (!requireArgs(player, args, 4, "/f admin power <faction> <amount>")) return true;
-                Faction powerFaction = plugin.getFactionManager().getFactionByName(args[2]);
-                if (powerFaction == null) {
-                    player.sendMessage(msg.error("Faction not found!"));
-                    return true;
-                }
-                try {
-                    double powerAmount = Double.parseDouble(args[3]);
-                    powerFaction.setBonusPower(powerAmount);
-                    plugin.getFactionManager().markDirty();
-                    player.sendMessage(msg.success("Set " + powerFaction.getName() + "'s bonus power to " + powerAmount));
-                } catch (NumberFormatException e) {
-                    player.sendMessage(msg.error("Invalid number!"));
-                }
-                return true;
-
-            case "elixir":
-                if (!requireArgs(player, args, 4, "/f admin elixir <faction> <amount>")) return true;
-                Faction elixirFaction = plugin.getFactionManager().getFactionByName(args[2]);
-                if (elixirFaction == null) {
-                    player.sendMessage(msg.error("Faction not found!"));
-                    return true;
-                }
-                try {
-                    double elixirAmount = Double.parseDouble(args[3]);
-                    elixirFaction.setElixir(elixirAmount);
-                    plugin.getFactionManager().markDirty();
-                    player.sendMessage(msg.success("Set " + elixirFaction.getName() + "'s elixir to " + elixirAmount));
-                } catch (NumberFormatException e) {
-                    player.sendMessage(msg.error("Invalid number!"));
-                }
-                return true;
-
-            case "remove":
-                if (!requireArgs(player, args, 3, "/f admin remove <faction>")) return true;
-                Faction removeFaction = plugin.getFactionManager().getFactionByName(args[2]);
-                if (removeFaction == null) {
-                    player.sendMessage(msg.error("Faction not found!"));
-                    return true;
-                }
-                String removedName = removeFaction.getName();
-
-                // deleteFaction() already removes this faction's claims internally.
-                plugin.getFactionManager().deleteFaction(removeFaction.getFactionId());
-                player.sendMessage(msg.success("Force removed faction: " + removedName));
-                return true;
-
             case "claim":
-                if (!requireArgs(player, args, 3, "/f admin claim <faction>")) return true;
-                Faction claimFor = plugin.getFactionManager().getFactionByName(args[2]);
-                if (claimFor == null) {
-                    player.sendMessage(msg.error("Faction not found!"));
-                    return true;
-                }
-                Chunk chunk = player.getLocation().getChunk();
-                ClaimResult result = plugin.getClaimManager().claimChunk(chunk, claimFor.getFactionId());
-                if (result.isSuccess()) {
-                    player.sendMessage(msg.success("Chunk claimed for " + claimFor.getName() + "!"));
-                } else {
-                    player.sendMessage(msg.error("Could not claim chunk: " + result.getMessage()));
-                }
-                return true;
-
+                return handleClaim(player, args);
             case "bypass":
-                boolean bypassing = plugin.getClaimManager().getBypassPlayers().contains(player.getUniqueId());
-                if (bypassing) {
-                    plugin.getClaimManager().getBypassPlayers().remove(player.getUniqueId());
-                    player.sendMessage(msg.info("Bypass mode disabled."));
-                } else {
-                    plugin.getClaimManager().getBypassPlayers().add(player.getUniqueId());
-                    player.sendMessage(msg.warning("Bypass mode enabled! You can interact anywhere."));
-                }
-                return true;
-
+                return handleBypass(player);
             default:
-                player.sendMessage(msg.error("Unknown admin command!"));
-                return true;
+                return handleAdminCommand(player, args);
         }
+    }
+
+    private boolean handleClaim(Player player, String[] args) {
+        if (!requireArgs(player, args, 3, "/f admin claim <faction>")) return true;
+        Faction claimFor = plugin.getFactionManager().getFactionByName(args[2]);
+        if (claimFor == null) {
+            player.sendMessage(msg.error("Faction not found!"));
+            return true;
+        }
+        Chunk chunk = player.getLocation().getChunk();
+        ClaimResult result = plugin.getClaimManager().claimChunk(chunk, claimFor.getFactionId());
+        if (result.isSuccess()) {
+            player.sendMessage(msg.success("Chunk claimed for " + claimFor.getName() + "!"));
+        } else {
+            player.sendMessage(msg.error("Could not claim chunk: " + result.getMessage()));
+        }
+        return true;
+    }
+
+    private boolean handleBypass(Player player) {
+        boolean bypassing = plugin.getClaimManager().getBypassPlayers().contains(player.getUniqueId());
+        if (bypassing) {
+            plugin.getClaimManager().getBypassPlayers().remove(player.getUniqueId());
+            player.sendMessage(msg.info("Bypass mode disabled."));
+        } else {
+            plugin.getClaimManager().getBypassPlayers().add(player.getUniqueId());
+            player.sendMessage(msg.warning("Bypass mode enabled! You can interact anywhere."));
+        }
+        return true;
     }
 
     // ==========================================
@@ -137,18 +97,7 @@ public class FactionAdminCommands extends AbstractFactionSubcommand {
     boolean handleConsole(CommandSender sender, String subCommand, String[] args) {
         switch (subCommand) {
             case "list":
-                List<Faction> factions = plugin.getFactionManager().getAllFactions();
-                if (factions.isEmpty()) {
-                    sender.sendMessage(msg.error("No factions exist yet."));
-                    return true;
-                }
-                sender.sendMessage(msg.header("Factions (" + factions.size() + ")"));
-                for (Faction f : factions) {
-                    sender.sendMessage(msg.info(FactionListFormatter.listRow(
-                            "", f.getName(), f.getMemberCount(),
-                            effectivePower(f), plugin.getClaimManager().getClaimCount(f.getFactionId()))));
-                }
-                return true;
+                return handleListCommand(sender);
 
             case "top":
                 return handleConsoleTop(sender, args);
@@ -200,71 +149,75 @@ public class FactionAdminCommands extends AbstractFactionSubcommand {
         return true;
     }
 
+    // /f admin <subcommand> from console. Needs at least the subcommand itself;
+    // each subcommand below validates its own remaining arguments.
     boolean handleAdminConsole(CommandSender sender, String[] args) {
-        if (args.length < 3) {
+        if (args.length < 2) {
             sender.sendMessage(msg.error("Usage: /f admin <list|power|elixir|remove> [args]"));
             return true;
         }
+        return handleAdminCommand(sender, args);
+    }
+
+    // Shared power/elixir/remove/list handling for both the player (/f admin)
+    // and console (/f admin, /f admin <sub>) entry points.
+    private boolean handleAdminCommand(CommandSender sender, String[] args) {
         String adminSub = args[1].toLowerCase();
+
         switch (adminSub) {
             case "list":
-                return handleListConsole(sender);
+                return handleListCommand(sender);
+
             case "power":
-                if (args.length < 4) {
-                    sender.sendMessage(msg.error("Usage: /f admin power <faction> <amount>"));
-                    return true;
-                }
-                Faction powerFaction = plugin.getFactionManager().getFactionByName(args[2]);
-                if (powerFaction == null) {
-                    sender.sendMessage(msg.error("Faction not found!"));
-                    return true;
-                }
-                try {
-                    double amount = Double.parseDouble(args[3]);
-                    powerFaction.setBonusPower(amount);
-                    plugin.getFactionManager().markDirty();
-                    sender.sendMessage(msg.success("Set " + powerFaction.getName() + "'s bonus power to " + amount));
-                } catch (NumberFormatException e) {
-                    sender.sendMessage(msg.error("Invalid number!"));
-                }
-                return true;
+                if (!requireArgs(sender, args, 4, "/f admin power <faction> <amount>")) return true;
+                return setFactionAmount(sender, args, "bonus power", Faction::setBonusPower);
+
             case "elixir":
-                if (args.length < 4) {
-                    sender.sendMessage(msg.error("Usage: /f admin elixir <faction> <amount>"));
-                    return true;
-                }
-                Faction elixirFaction = plugin.getFactionManager().getFactionByName(args[2]);
-                if (elixirFaction == null) {
-                    sender.sendMessage(msg.error("Faction not found!"));
-                    return true;
-                }
-                try {
-                    double amount = Double.parseDouble(args[3]);
-                    elixirFaction.setElixir(amount);
-                    plugin.getFactionManager().markDirty();
-                    sender.sendMessage(msg.success("Set " + elixirFaction.getName() + "'s elixir to " + amount));
-                } catch (NumberFormatException e) {
-                    sender.sendMessage(msg.error("Invalid number!"));
-                }
-                return true;
+                if (!requireArgs(sender, args, 4, "/f admin elixir <faction> <amount>")) return true;
+                return setFactionAmount(sender, args, "elixir", Faction::setElixir);
+
             case "remove":
-                Faction removeFaction = plugin.getFactionManager().getFactionByName(args[2]);
-                if (removeFaction == null) {
-                    sender.sendMessage(msg.error("Faction not found!"));
-                    return true;
-                }
-                String removedName = removeFaction.getName();
-                plugin.getClaimManager().removeAllFactionClaims(removeFaction.getFactionId());
-                plugin.getFactionManager().deleteFaction(removeFaction.getFactionId());
-                sender.sendMessage(msg.success("Force removed faction: " + removedName));
-                return true;
+                if (!requireArgs(sender, args, 3, "/f admin remove <faction>")) return true;
+                return handleRemove(sender, args);
+
             default:
-                sender.sendMessage(msg.error("Unknown admin subcommand. Usage: /f admin <list|power|elixir|remove> [args]"));
+                sender.sendMessage(msg.error("Unknown admin command!"));
                 return true;
         }
     }
 
-    boolean handleListConsole(CommandSender sender) {
+    private boolean setFactionAmount(CommandSender sender, String[] args, String label, ObjDoubleConsumer<Faction> setter) {
+        Faction faction = plugin.getFactionManager().getFactionByName(args[2]);
+        if (faction == null) {
+            sender.sendMessage(msg.error("Faction not found!"));
+            return true;
+        }
+        try {
+            double amount = Double.parseDouble(args[3]);
+            setter.accept(faction, amount);
+            plugin.getFactionManager().markDirty();
+            sender.sendMessage(msg.success("Set " + faction.getName() + "'s " + label + " to " + amount));
+        } catch (NumberFormatException e) {
+            sender.sendMessage(msg.error("Invalid number!"));
+        }
+        return true;
+    }
+
+    private boolean handleRemove(CommandSender sender, String[] args) {
+        Faction removeFaction = plugin.getFactionManager().getFactionByName(args[2]);
+        if (removeFaction == null) {
+            sender.sendMessage(msg.error("Faction not found!"));
+            return true;
+        }
+        String removedName = removeFaction.getName();
+
+        // deleteFaction() already removes this faction's claims internally.
+        plugin.getFactionManager().deleteFaction(removeFaction.getFactionId());
+        sender.sendMessage(msg.success("Force removed faction: " + removedName));
+        return true;
+    }
+
+    private boolean handleListCommand(CommandSender sender) {
         List<Faction> factions = plugin.getFactionManager().getAllFactions();
         if (factions.isEmpty()) {
             sender.sendMessage(msg.error("No factions exist yet."));
@@ -273,7 +226,7 @@ public class FactionAdminCommands extends AbstractFactionSubcommand {
         sender.sendMessage(msg.header("Factions (" + factions.size() + ")"));
         for (Faction f : factions) {
             sender.sendMessage(msg.info(FactionListFormatter.listRow(
-                    "",                     f.getName(), f.getMemberCount(),
+                    "", f.getName(), f.getMemberCount(),
                     effectivePower(f), plugin.getClaimManager().getClaimCount(f.getFactionId()))));
         }
         return true;

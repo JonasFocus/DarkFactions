@@ -167,7 +167,6 @@ public class PowerManager {
             faction.setBonusPower(Math.max(0.0, faction.getBonusPower() - memberPower));
             faction.setMaxPower(Math.max(0.0, faction.getMaxPower() - memberMax));
         }
-        plugin.getFactionManager().markDirty();
         plugin.getLogger().info("Migrated legacy faction power to per-player + bonus model.");
     }
 
@@ -211,7 +210,6 @@ public class PowerManager {
         Faction faction = plugin.getFactionManager().getFaction(factionId);
         if (faction == null) return;
         faction.addBonusPower(raidPower);
-        plugin.getFactionManager().markDirty();
     }
 
     // Regenerate power for ALL players

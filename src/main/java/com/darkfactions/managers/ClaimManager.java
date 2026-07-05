@@ -159,7 +159,6 @@ public class ClaimManager {
             if (faction == null || !faction.removeElixir(claimCost)) {
                 return ClaimResult.NO_ELIXIR;
             }
-            plugin.getFactionManager().markDirty();
         }
 
         // Claim it!
@@ -173,7 +172,6 @@ public class ClaimManager {
             Faction faction = plugin.getFactionManager().getFaction(factionId);
             if (faction != null) {
                 faction.addElixir(chunkElixirReward);
-                plugin.getFactionManager().markDirty();
             }
         }
 
@@ -200,8 +198,6 @@ public class ClaimManager {
                     if (!faction.removeElixir(lostElixir)) {
                         plugin.getLogger().warning("Faction " + faction.getName()
                                 + " had insufficient elixir for unclaim penalty (" + lostElixir + ")");
-                    } else {
-                        plugin.getFactionManager().markDirty();
                     }
                 }
             }

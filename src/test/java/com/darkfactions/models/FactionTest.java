@@ -133,4 +133,43 @@ class FactionTest {
         assertEquals(2, faction.getMemberCount());
         assertTrue(faction.isMember(a));
     }
+
+    @Test
+    void newFactionStartsDirtySoItGetsSavedAtLeastOnce() {
+        Faction faction = new Faction("Warriors", UUID.randomUUID());
+        assertTrue(faction.isDirty());
+    }
+
+    @Test
+    void clearDirtyThenMutatingMarksItDirtyAgain() {
+        Faction faction = new Faction("Warriors", UUID.randomUUID());
+        faction.clearDirty();
+        assertFalse(faction.isDirty());
+
+        faction.addElixir(10.0);
+
+        assertTrue(faction.isDirty());
+    }
+
+    @Test
+    void clearDirtyWithoutFurtherMutationStaysClean() {
+        Faction faction = new Faction("Warriors", UUID.randomUUID());
+        faction.clearDirty();
+
+        assertFalse(faction.isDirty());
+    }
+
+    @Test
+    void removeElixirOnlyMarksDirtyOnSuccess() {
+        Faction faction = new Faction("Warriors", UUID.randomUUID());
+        faction.clearDirty();
+
+        assertFalse(faction.removeElixir(5.0)); // insufficient balance
+        assertFalse(faction.isDirty());
+
+        faction.addElixir(5.0);
+        faction.clearDirty();
+        assertTrue(faction.removeElixir(5.0));
+        assertTrue(faction.isDirty());
+    }
 }

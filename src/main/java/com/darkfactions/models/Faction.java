@@ -88,6 +88,12 @@ public class Faction {
     // TNT toggle - if false, TNT does no damage in faction territory
     private volatile boolean tntEnabled;
 
+    // Tracks whether this faction has unsaved changes, so FactionManager only
+    // has to persist the factions that actually changed on a given save cycle
+    // instead of rewriting every faction in memory. Starts true so a
+    // freshly-created faction is saved at least once.
+    private volatile boolean dirty = true;
+
     // ==========================================
     // Constructor - Makes a brand new faction!
     // ==========================================
@@ -122,6 +128,22 @@ public class Faction {
         this.allies = newMemberSet();
     }
 
+    // ==========================================
+    // Dirty tracking - lets FactionManager save only what changed
+    // ==========================================
+
+    public void markDirty() {
+        this.dirty = true;
+    }
+
+    public boolean isDirty() {
+        return dirty;
+    }
+
+    public void clearDirty() {
+        this.dirty = false;
+    }
+
     // Order-preserving, thread-safe set used for members/officers/enemies/allies.
     private static Set<UUID> newMemberSet() {
         return Collections.synchronizedSet(new LinkedHashSet<>());
@@ -142,12 +164,14 @@ public class Faction {
     // Adds a player to the faction
     public void addMember(UUID playerUuid) {
         members.add(playerUuid);
+        markDirty();
     }
 
     // Removes a player from the faction
     public void removeMember(UUID playerUuid) {
         members.remove(playerUuid);
         officers.remove(playerUuid);
+        markDirty();
     }
 
     // Check if a player is in this faction
@@ -163,12 +187,14 @@ public class Faction {
     public void promoteToOfficer(UUID playerUuid) {
         if (members.contains(playerUuid)) {
             officers.add(playerUuid);
+            markDirty();
         }
     }
 
     // Demote an officer back to member
     public void demoteFromOfficer(UUID playerUuid) {
         officers.remove(playerUuid);
+        markDirty();
     }
 
     // Check if a player is an officer
@@ -201,10 +227,12 @@ public class Faction {
 
     public void addBonusPower(double amount) {
         this.bonusPower += amount;
+        markDirty();
     }
 
     public void setBonusPower(double bonusPower) {
         this.bonusPower = bonusPower;
+        markDirty();
     }
 
     public double getBonusPower() {
@@ -231,6 +259,7 @@ public class Faction {
 
     public void addBonusMaxPower(double amount) {
         this.maxPower += amount;
+        markDirty();
     }
 
     // ==========================================
@@ -240,12 +269,14 @@ public class Faction {
     // Add elixir points
     public void addElixir(double amount) {
         this.elixir += amount;
+        markDirty();
     }
 
     // Remove elixir points (if they have enough)
     public boolean removeElixir(double amount) {
         if (this.elixir >= amount) {
             this.elixir -= amount;
+            markDirty();
             return true;
         }
         return false;
@@ -257,10 +288,12 @@ public class Faction {
 
     public void addEnemy(UUID factionId) {
         enemies.add(factionId);
+        markDirty();
     }
 
     public void removeEnemy(UUID factionId) {
         enemies.remove(factionId);
+        markDirty();
     }
 
     public boolean isEnemy(UUID factionId) {
@@ -269,10 +302,12 @@ public class Faction {
 
     public void addAlly(UUID factionId) {
         allies.add(factionId);
+        markDirty();
     }
 
     public void removeAlly(UUID factionId) {
         allies.remove(factionId);
+        markDirty();
     }
 
     public boolean isAlly(UUID factionId) {
@@ -289,6 +324,7 @@ public class Faction {
 
     public void setMotd(String motd) {
         this.motd = motd;
+        markDirty();
     }
 
     public boolean hasMotd() {
@@ -305,6 +341,7 @@ public class Faction {
 
     public void setDescription(String description) {
         this.description = description;
+        markDirty();
     }
 
     public boolean hasDescription() {
@@ -321,6 +358,7 @@ public class Faction {
 
     public void setTag(String tag) {
         this.tag = tag;
+        markDirty();
     }
 
     public boolean hasTag() {
@@ -353,6 +391,7 @@ public class Faction {
 
     public void setName(String name) {
         this.name = name;
+        markDirty();
     }
 
     public UUID getLeaderUuid() {
@@ -361,6 +400,7 @@ public class Faction {
 
     public void setLeaderUuid(UUID leaderUuid) {
         this.leaderUuid = leaderUuid;
+        markDirty();
     }
 
     public List<UUID> getMembers() {

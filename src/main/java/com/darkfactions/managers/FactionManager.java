@@ -23,7 +23,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Level;
 
 public class FactionManager {
@@ -34,7 +33,6 @@ public class FactionManager {
     private final Map<UUID, List<UUID>> pendingInvites;
     private final Map<String, UUID> factionsByName;
     private final Set<UUID> pendingDeletions;
-    private final AtomicBoolean dirty;
 
     public FactionManager(DarkFactions plugin) {
         this.plugin = plugin;
@@ -43,15 +41,13 @@ public class FactionManager {
         this.pendingInvites = new ConcurrentHashMap<>();
         this.factionsByName = new ConcurrentHashMap<>();
         this.pendingDeletions = ConcurrentHashMap.newKeySet();
-        this.dirty = new AtomicBoolean(false);
     }
 
-    // Other managers (Elixir/Power/Claim) mutate a Faction's power/elixir
-    // directly on the shared model object instead of through this class, so
-    // they call this to make sure that change actually gets persisted on the
-    // next save cycle.
+    // Kept for the handful of admin call sites that don't hold a direct Faction
+    // reference; a Faction now tracks its own dirty state via its mutators, so
+    // this is a no-op retained for source compatibility.
     public void markDirty() {
-        dirty.set(true);
+        // no-op: Faction instances mark themselves dirty on mutation.
     }
 
     // Canonical key for the name index: lower-cased with a fixed locale so the
@@ -79,7 +75,6 @@ public class FactionManager {
         factionsByName.put(nameKey(name), faction.getFactionId());
         playerFactionMap.put(leaderUuid, faction.getFactionId());
 
-        dirty.set(true);
         return faction;
     }
 
@@ -100,7 +95,6 @@ public class FactionManager {
         factionsByName.remove(nameKey(faction.getName()));
         pendingDeletions.add(factionId);
 
-        dirty.set(true);
         return true;
     }
 
@@ -134,7 +128,6 @@ public class FactionManager {
         factionsByName.remove(nameKey(faction.getName()));
         faction.setName(newName);
         factionsByName.put(nameKey(newName), factionId);
-        dirty.set(true);
         return true;
     }
 
@@ -154,7 +147,6 @@ public class FactionManager {
         playerFactionMap.put(playerUuid, factionId);
         pendingInvites.remove(playerUuid);
 
-        dirty.set(true);
         return true;
     }
 
@@ -173,7 +165,6 @@ public class FactionManager {
             deleteFaction(faction.getFactionId());
         }
 
-        dirty.set(true);
         return true;
     }
 
@@ -188,7 +179,6 @@ public class FactionManager {
         if (maxOfficers > 0 && faction.getOfficers().size() >= maxOfficers) return false;
 
         faction.promoteToOfficer(playerUuid);
-        dirty.set(true);
         return true;
     }
 
@@ -197,7 +187,6 @@ public class FactionManager {
         if (faction == null) return false;
         if (!faction.isOfficer(playerUuid)) return false;
         faction.demoteFromOfficer(playerUuid);
-        dirty.set(true);
         return true;
     }
 
@@ -206,7 +195,6 @@ public class FactionManager {
         if (faction == null) return false;
         if (!faction.isMember(newLeaderUuid)) return false;
         faction.setLeaderUuid(newLeaderUuid);
-        dirty.set(true);
         return true;
     }
 
@@ -255,7 +243,6 @@ public class FactionManager {
         faction.setHomeZ(location.getZ());
         faction.setHomeYaw(location.getYaw());
         faction.setHomePitch(location.getPitch());
-        dirty.set(true);
     }
 
     public Location getFactionHome(UUID factionId) {
@@ -305,14 +292,32 @@ public class FactionManager {
             for (UUID muid : f.getMembers()) {
                 playerFactionMap.put(muid, f.getFactionId());
             }
+            // Loading hydrates the faction through its normal setters, which
+            // mark it dirty; clear that so a freshly-loaded faction with no
+            // real changes isn't rewritten on the very next save cycle.
+            f.clearDirty();
             plugin.getLogger().info("Loaded faction: " + f.getName());
         }
         plugin.getLogger().info("Loaded " + factions.size() + " factions!");
     }
 
+    // Snapshots and clears the dirty flag of every faction that has unsaved
+    // changes, so only those get written out instead of the full set.
+    private List<Faction> collectDirty() {
+        List<Faction> toSave = new ArrayList<>();
+        for (Faction f : factions.values()) {
+            if (f.isDirty()) {
+                f.clearDirty();
+                toSave.add(f);
+            }
+        }
+        return toSave;
+    }
+
     public void saveToStoreAsync(SaveQueue queue) {
         boolean hasDeletions = !pendingDeletions.isEmpty();
-        if (!dirty.getAndSet(false) && !hasDeletions) return;
+        List<Faction> toSave = collectDirty();
+        if (toSave.isEmpty() && !hasDeletions) return;
 
         List<UUID> toDelete = hasDeletions ? new ArrayList<>(pendingDeletions) : List.of();
         pendingDeletions.removeAll(toDelete);
@@ -323,12 +328,12 @@ public class FactionManager {
                 for (UUID factionId : toDelete) {
                     store.deleteFaction(factionId);
                 }
-                for (Faction f : factions.values()) {
+                for (Faction f : toSave) {
                     store.saveFaction(f);
                 }
             } catch (RuntimeException e) {
                 pendingDeletions.addAll(toDelete);
-                dirty.set(true);
+                toSave.forEach(Faction::markDirty);
                 plugin.getLogger().log(Level.SEVERE, "Faction save failed, will retry on the next save cycle", e);
             }
         });
@@ -337,7 +342,8 @@ public class FactionManager {
     /** Synchronous save used during plugin shutdown; clears dirty only after a confirmed write. */
     public void saveToStoreSync(DataStore store) {
         boolean hasDeletions = !pendingDeletions.isEmpty();
-        if (!dirty.get() && !hasDeletions) return;
+        List<Faction> toSave = factions.values().stream().filter(Faction::isDirty).toList();
+        if (toSave.isEmpty() && !hasDeletions) return;
 
         List<UUID> toDelete = hasDeletions ? new ArrayList<>(pendingDeletions) : List.of();
         pendingDeletions.removeAll(toDelete);
@@ -346,10 +352,10 @@ public class FactionManager {
             for (UUID factionId : toDelete) {
                 store.deleteFaction(factionId);
             }
-            for (Faction f : factions.values()) {
+            for (Faction f : toSave) {
                 store.saveFaction(f);
             }
-            dirty.set(false);
+            toSave.forEach(Faction::clearDirty);
         } catch (RuntimeException e) {
             pendingDeletions.addAll(toDelete);
             plugin.getLogger().log(Level.SEVERE, "Faction save failed during shutdown", e);

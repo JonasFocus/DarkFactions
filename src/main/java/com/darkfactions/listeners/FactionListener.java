@@ -7,16 +7,11 @@ package com.darkfactions.listeners;
 // ==========================================
 
 import com.darkfactions.DarkFactions;
-import com.darkfactions.commands.FactionCommand;
-import com.darkfactions.managers.ClaimResult;
 import com.darkfactions.models.Faction;
-import com.darkfactions.utils.ChatFormatter;
 import com.darkfactions.utils.ProtectionRules;
 import com.darkfactions.utils.PvpRules;
-import com.darkfactions.utils.TerritoryMessageFormatter;
 
 import org.bukkit.Chunk;
-import org.bukkit.GameMode;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
@@ -50,13 +45,8 @@ import org.bukkit.event.block.BlockPistonExtendEvent;
 import org.bukkit.event.block.BlockPistonRetractEvent;
 
 import io.papermc.paper.event.player.AsyncChatEvent;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
-import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 public class FactionListener implements Listener {
@@ -64,15 +54,19 @@ public class FactionListener implements Listener {
     // Reference to main plugin
     private final DarkFactions plugin;
 
-    // Track last known chunk for each player (to detect border crossing)
-    private final Map<UUID, String> playerLastChunk;
+    // Handles territory border messages, auto-claim, and flight on move
+    private final TerritoryMovementHandler territoryMovementHandler;
+
+    // Routes faction/ally chat
+    private final FactionChatService chatService;
 
     // ==========================================
     // Constructor
     // ==========================================
     public FactionListener(DarkFactions plugin) {
         this.plugin = plugin;
-        this.playerLastChunk = new HashMap<>();
+        this.territoryMovementHandler = new TerritoryMovementHandler(plugin);
+        this.chatService = new FactionChatService(plugin);
     }
 
     // ==========================================
@@ -180,19 +174,6 @@ public class FactionListener implements Listener {
         );
 
         return deny ? ownerFaction : null;
-    }
-
-    // ==========================================
-    // Expand a territory-message template with a faction's details.
-    // ==========================================
-    private String formatTerritoryMessage(String template, Faction faction) {
-        return TerritoryMessageFormatter.format(
-                template,
-                faction.getName(),
-                plugin.getPlayerNameCache().getPlayerName(faction.getLeaderUuid()),
-                faction.getMemberCount(),
-                plugin.getPowerManager().getEffectiveFactionPower(faction.getFactionId()),
-                faction.getElixir());
     }
 
     // Check if a block type should be protected
@@ -501,113 +482,7 @@ public class FactionListener implements Listener {
     // HIGHEST is reserved for the cancellation handlers above.
     @EventHandler
     public void onPlayerMove(PlayerMoveEvent event) {
-        Player player = event.getPlayer();
-
-        // Only check on block changes, not just looking around
-        if (event.getFrom().getBlockX() == event.getTo().getBlockX() &&
-            event.getFrom().getBlockY() == event.getTo().getBlockY() &&
-            event.getFrom().getBlockZ() == event.getTo().getBlockZ()) {
-            return;
-        }
-
-        // Cancel home warmup on move
-        if (event.getFrom().getBlockX() != event.getTo().getBlockX() || event.getFrom().getBlockZ() != event.getTo().getBlockZ()) {
-            plugin.getFactionCommand().cancelWarmup(player.getUniqueId(), false);
-        }
-
-        Chunk toChunk = event.getTo().getChunk();
-        String toKey = toChunk.getWorld().getName() + ":" + toChunk.getX() + ":" + toChunk.getZ();
-
-        String lastKey = playerLastChunk.get(player.getUniqueId());
-
-        // If the chunk hasnt changed, do nothing
-        if (toKey.equals(lastKey)) {
-            return;
-        }
-
-        // Update last known chunk
-        playerLastChunk.put(player.getUniqueId(), toKey);
-
-        // ==========================================
-        // Territory border message
-        // ==========================================
-        UUID newOwnerId = plugin.getClaimManager().getClaimOwner(toChunk);
-
-        // Get old chunk owner from last key
-        UUID oldOwnerId = null;
-        if (lastKey != null) {
-            oldOwnerId = plugin.getClaimManager().getOwnerByKey(lastKey);
-        }
-
-        // Only show messages if the owner actually changed
-        if (newOwnerId != null && !newOwnerId.equals(oldOwnerId)
-                && plugin.getConfigManager().isTerritoryMessagesEnabled()) {
-            Faction newFaction = plugin.getFactionManager().getFaction(newOwnerId);
-
-            if (newFaction != null) {
-                Faction playerFaction = plugin.getFactionManager().getPlayerFaction(player.getUniqueId());
-
-                String template;
-                if (playerFaction != null && playerFaction.getFactionId().equals(newOwnerId)) {
-                    template = plugin.getConfigManager().getTerritoryEnterOwn();
-                } else if (playerFaction != null && newFaction.isAlly(playerFaction.getFactionId())) {
-                    template = plugin.getConfigManager().getTerritoryEnterAlly();
-                } else {
-                    template = plugin.getConfigManager().getTerritoryEnterEnemy();
-                }
-                player.sendMessage(formatTerritoryMessage(template, newFaction));
-            }
-        }
-
-        // Leaving territory message
-        if (oldOwnerId != null && newOwnerId == null && plugin.getConfigManager().isTerritoryMessagesEnabled()) {
-            Faction oldFaction = plugin.getFactionManager().getFaction(oldOwnerId);
-            if (oldFaction != null) {
-                player.sendMessage(formatTerritoryMessage(plugin.getConfigManager().getTerritoryExit(), oldFaction));
-            }
-        }
-
-        // ==========================================
-        // Auto-claim check
-        // ==========================================
-        if (newOwnerId == null) {
-            // This chunk is wilderness - check if player has auto-claim on
-            FactionCommand cmd = plugin.getFactionCommand();
-            if (cmd != null && cmd.isAutoClaiming(player.getUniqueId())) {
-                Faction playerFaction = plugin.getFactionManager().getPlayerFaction(player.getUniqueId());
-                if (playerFaction != null) {
-                    ClaimResult result = plugin.getClaimManager().claimChunk(toChunk, playerFaction.getFactionId());
-                    if (result.isSuccess()) {
-                        player.sendMessage(plugin.getMessageUtils().success("Auto-claimed this chunk!"));
-                    }
-                }
-            }
-        }
-
-        // ==========================================
-        // Flight check - disable flight when leaving own territory
-        // ==========================================
-        if (player.getAllowFlight()
-                && player.getGameMode() != GameMode.CREATIVE && player.getGameMode() != GameMode.SPECTATOR) {
-            // Disable flight if combat tagged and config says so
-            if (plugin.getConfigManager().isCombatTagPreventFly() && plugin.getCombatManager().isTagged(player.getUniqueId())) {
-                player.setAllowFlight(false);
-                player.setFlying(false);
-                player.sendMessage(plugin.getMessageUtils().error("Flight disabled during combat!"));
-            } else if (plugin.getConfigManager().isFlightAutoDisableOnExit()
-                    && plugin.getConfigManager().isFlightOwnTerritoryOnly()) {
-                Faction playerFaction = plugin.getFactionManager().getPlayerFaction(player.getUniqueId());
-                if (playerFaction == null || newOwnerId == null ||
-                    !newOwnerId.equals(playerFaction.getFactionId())) {
-                    // Not in own territory - disable flight
-                    player.setAllowFlight(false);
-                    player.setFlying(false);
-                    if (plugin.getConfigManager().isFlightNotifyOnExit()) {
-                        player.sendMessage(plugin.getMessageUtils().error("Flight disabled outside your territory!"));
-                    }
-                }
-            }
-        }
+        territoryMovementHandler.handle(event);
     }
 
     // ==========================================
@@ -674,7 +549,7 @@ public class FactionListener implements Listener {
             }
         }
 
-        playerLastChunk.remove(playerUuid);
+        territoryMovementHandler.clear(playerUuid);
     }
 
     // ==========================================
@@ -730,62 +605,6 @@ public class FactionListener implements Listener {
     // ==========================================
     @EventHandler
     public void onPlayerChat(AsyncChatEvent event) {
-        Player player = event.getPlayer();
-        UUID playerUuid = player.getUniqueId();
-
-        Faction faction = plugin.getFactionManager().getPlayerFaction(playerUuid);
-        if (faction == null) {
-            return; // Not in a faction, normal chat
-        }
-
-        // Check the command handler for chat mode
-        FactionCommand cmd = plugin.getFactionCommand();
-        String chatMode = cmd != null ? cmd.getChatMode(playerUuid) : null;
-
-        if (chatMode == null) {
-            return; // Normal chat
-        }
-
-        // Cancel the normal chat broadcast
-        event.setCancelled(true);
-
-        String message = PlainTextComponentSerializer.plainText().serialize(event.message());
-        String prefix = LegacyComponentSerializer.legacySection()
-                .serialize(plugin.getMessageUtils().getChatPrefix()); // Get formatted prefix
-
-        boolean allyMode = "ally".equals(chatMode);
-        String template = allyMode
-                ? plugin.getConfigManager().getAllyChatFormat()
-                : plugin.getConfigManager().getFactionChatFormat();
-
-        Component rendered = LegacyComponentSerializer.legacySection().deserialize(
-                ChatFormatter.format(template, prefix, faction.getFormattedTag(),
-                        player.getName(), faction.getName(), message));
-
-        // Always reaches the speaker's own faction; ally mode also fans out to allies.
-        broadcastToMembers(faction, rendered);
-        if (allyMode) {
-            for (UUID allyId : faction.getAllies()) {
-                Faction allyFaction = plugin.getFactionManager().getFaction(allyId);
-                if (allyFaction != null) {
-                    broadcastToMembers(allyFaction, rendered);
-                }
-            }
-        }
-
-        if (plugin.getConfigManager().isLogChatToConsole()) {
-            String label = allyMode ? "ALLY CHAT" : "FACTION CHAT";
-            plugin.getLogger().info("[" + label + "] " + faction.getName() + " - " + player.getName() + ": " + message);
-        }
-    }
-
-    // Send a rendered component to every online member of a faction.
-    private void broadcastToMembers(Faction faction, Component message) {
-        for (UUID memberUuid : faction.getMembers()) {
-            Player member = plugin.getServer().getPlayer(memberUuid);
-            if (member != null && member.isOnline()) {
-                member.sendMessage(message);
-            }
-        }
+        chatService.handle(event);
     }
 }

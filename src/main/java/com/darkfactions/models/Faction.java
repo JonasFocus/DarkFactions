@@ -441,6 +441,7 @@ public class Faction {
 
     public void setWorldName(String worldName) {
         this.worldName = worldName;
+        markDirty();
     }
 
     public double getHomeX() {
@@ -449,6 +450,7 @@ public class Faction {
 
     public void setHomeX(double homeX) {
         this.homeX = homeX;
+        markDirty();
     }
 
     public double getHomeY() {
@@ -457,6 +459,7 @@ public class Faction {
 
     public void setHomeY(double homeY) {
         this.homeY = homeY;
+        markDirty();
     }
 
     public double getHomeZ() {
@@ -465,6 +468,7 @@ public class Faction {
 
     public void setHomeZ(double homeZ) {
         this.homeZ = homeZ;
+        markDirty();
     }
 
     public float getHomeYaw() {
@@ -473,6 +477,7 @@ public class Faction {
 
     public void setHomeYaw(float homeYaw) {
         this.homeYaw = homeYaw;
+        markDirty();
     }
 
     public float getHomePitch() {
@@ -481,6 +486,7 @@ public class Faction {
 
     public void setHomePitch(float homePitch) {
         this.homePitch = homePitch;
+        markDirty();
     }
 
     public double getMaxPower() {
@@ -489,6 +495,7 @@ public class Faction {
 
     public void setMaxPower(double maxPower) {
         this.maxPower = maxPower;
+        markDirty();
     }
 
     public long getCreationTime() {
@@ -505,6 +512,7 @@ public class Faction {
 
     public void setElixir(double elixir) {
         this.elixir = elixir;
+        markDirty();
     }
 
     public boolean isOpen() {
@@ -513,6 +521,7 @@ public class Faction {
 
     public void setOpen(boolean open) {
         this.open = open;
+        markDirty();
     }
 
     public boolean isPvpEnabled() {
@@ -521,6 +530,7 @@ public class Faction {
 
     public void setPvpEnabled(boolean pvpEnabled) {
         this.pvpEnabled = pvpEnabled;
+        markDirty();
     }
 
     public boolean isTntEnabled() {
@@ -529,6 +539,7 @@ public class Faction {
 
     public void setTntEnabled(boolean tntEnabled) {
         this.tntEnabled = tntEnabled;
+        markDirty();
     }
 
     // Get the total number of members including leader

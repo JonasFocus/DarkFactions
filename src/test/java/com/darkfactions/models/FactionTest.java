@@ -172,4 +172,54 @@ class FactionTest {
         assertTrue(faction.removeElixir(5.0));
         assertTrue(faction.isDirty());
     }
+
+    @Test
+    void toggleSettersMarkDirty() {
+        Faction faction = new Faction("Warriors", UUID.randomUUID());
+
+        faction.clearDirty();
+        faction.setElixir(42.0);
+        assertTrue(faction.isDirty());
+
+        faction.clearDirty();
+        faction.setOpen(true);
+        assertTrue(faction.isDirty());
+
+        faction.clearDirty();
+        faction.setPvpEnabled(true);
+        assertTrue(faction.isDirty());
+
+        faction.clearDirty();
+        faction.setTntEnabled(true);
+        assertTrue(faction.isDirty());
+    }
+
+    @Test
+    void homeSettersMarkDirty() {
+        Faction faction = new Faction("Warriors", UUID.randomUUID());
+
+        faction.clearDirty();
+        faction.setWorldName("world");
+        assertTrue(faction.isDirty());
+
+        faction.clearDirty();
+        faction.setHomeX(1.0);
+        assertTrue(faction.isDirty());
+
+        faction.clearDirty();
+        faction.setHomeY(2.0);
+        assertTrue(faction.isDirty());
+
+        faction.clearDirty();
+        faction.setHomeZ(3.0);
+        assertTrue(faction.isDirty());
+
+        faction.clearDirty();
+        faction.setHomeYaw(4.0f);
+        assertTrue(faction.isDirty());
+
+        faction.clearDirty();
+        faction.setHomePitch(5.0f);
+        assertTrue(faction.isDirty());
+    }
 }

@@ -224,6 +224,7 @@ public class SqlStore implements DataStore {
             }
         } catch (SQLException e) {
             plugin.getLogger().log(Level.SEVERE, "Failed to load factions", e);
+            throw new StorageException("Failed to load factions", e);
         }
 
         // Load members for every faction in one query, then group in memory, so
@@ -247,6 +248,7 @@ public class SqlStore implements DataStore {
             }
         } catch (SQLException e) {
             plugin.getLogger().log(Level.SEVERE, "Failed to load faction members", e);
+            throw new StorageException("Failed to load faction members", e);
         }
 
         // Load relations for every faction in one query, then group in memory.
@@ -270,6 +272,7 @@ public class SqlStore implements DataStore {
             }
         } catch (SQLException e) {
             plugin.getLogger().log(Level.SEVERE, "Failed to load faction relations", e);
+            throw new StorageException("Failed to load faction relations", e);
         }
 
         for (Faction f : result.values()) {
@@ -435,6 +438,7 @@ public class SqlStore implements DataStore {
             }
         } catch (SQLException e) {
             plugin.getLogger().log(Level.SEVERE, "Failed to load claims", e);
+            throw new StorageException("Failed to load claims", e);
         }
         return map;
     }
@@ -480,6 +484,7 @@ public class SqlStore implements DataStore {
             }
         } catch (SQLException e) {
             plugin.getLogger().log(Level.SEVERE, "Failed to load player data", e);
+            throw new StorageException("Failed to load player data", e);
         }
         return map.values();
     }
@@ -516,6 +521,7 @@ public class SqlStore implements DataStore {
             }
         } catch (SQLException e) {
             plugin.getLogger().log(Level.SEVERE, "Failed to load player names", e);
+            throw new StorageException("Failed to load player names", e);
         }
         return map;
     }
@@ -540,6 +546,7 @@ public class SqlStore implements DataStore {
             }
         } catch (SQLException e) {
             plugin.getLogger().log(Level.SEVERE, "Failed to load pending elixir", e);
+            throw new StorageException("Failed to load pending elixir", e);
         }
         return map;
     }
@@ -569,6 +576,7 @@ public class SqlStore implements DataStore {
             }
         } catch (SQLException e) {
             plugin.getLogger().log(Level.SEVERE, "Failed to load daily elixir claims", e);
+            throw new StorageException("Failed to load daily elixir claims", e);
         }
         return map;
     }

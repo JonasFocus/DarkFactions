@@ -301,6 +301,9 @@ public class FactionSocialCommands extends AbstractFactionSubcommand {
             return true;
         }
 
+        faction.removeEnemy(targetFaction.getFactionId());
+        targetFaction.removeEnemy(faction.getFactionId());
+
         faction.addAlly(targetFaction.getFactionId());
         targetFaction.addAlly(faction.getFactionId());
 

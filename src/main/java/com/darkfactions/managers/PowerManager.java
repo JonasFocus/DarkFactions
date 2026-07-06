@@ -18,17 +18,17 @@ import com.darkfactions.utils.PowerRules;
 
 import org.bukkit.entity.Player;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Level;
 
 public class PowerManager {
 
     private final DarkFactions plugin;
     private final Map<UUID, FactionPlayer> playerDataMap;
-    private final AtomicBoolean dirty;
 
     // Cached config values (reloaded on /f admin reload)
     private double defaultPlayerPower;
@@ -53,7 +53,6 @@ public class PowerManager {
     public PowerManager(DarkFactions plugin) {
         this.plugin = plugin;
         this.playerDataMap = new ConcurrentHashMap<>();
-        this.dirty = new AtomicBoolean(false);
         reloadConfig();
     }
 
@@ -106,12 +105,26 @@ public class PowerManager {
         });
     }
 
+    // Read-only lookup for pure-read call sites: returns the stored player data
+    // if present, otherwise a transient default that is deliberately NOT inserted
+    // into playerDataMap. This keeps read paths (e.g. protection checks on every
+    // block break/place/interact) from leaking a default entry for every UUID
+    // ever queried, which would grow the map unbounded and never be pruned.
+    private FactionPlayer readPlayerData(UUID playerUuid) {
+        FactionPlayer data = playerDataMap.get(playerUuid);
+        if (data != null) return data;
+        FactionPlayer transientData = new FactionPlayer(playerUuid);
+        transientData.setPower(defaultPlayerPower);
+        transientData.setMaxPower(maxPlayerPower);
+        return transientData;
+    }
+
     // ==========================================
     // Power Operations
     // ==========================================
 
     public double getPlayerPower(UUID playerUuid) {
-        return getPlayerData(playerUuid).getPower();
+        return readPlayerData(playerUuid).getPower();
     }
 
     public double getFactionPower(UUID factionId) {
@@ -132,7 +145,7 @@ public class PowerManager {
 
         double totalMax = 0.0;
         for (UUID memberUuid : faction.getMembers()) {
-            totalMax += getPlayerData(memberUuid).getMaxPower();
+            totalMax += readPlayerData(memberUuid).getMaxPower();
         }
         return totalMax;
     }
@@ -175,7 +188,6 @@ public class PowerManager {
         FactionPlayer data = getPlayerData(playerUuid);
         data.setPower(PowerRules.applyLoss(data.getPower(), powerLossOnDeath, minPlayerPower));
         data.setDeaths(data.getDeaths() + 1);
-        dirty.set(true);
     }
 
     // Called when a player dies from PVE (mobs, fall, lava, etc.)
@@ -184,7 +196,6 @@ public class PowerManager {
         FactionPlayer data = getPlayerData(playerUuid);
         data.setPower(PowerRules.applyLoss(data.getPower(), powerLossOnPveDeath, minPlayerPower));
         data.setDeaths(data.getDeaths() + 1);
-        dirty.set(true);
     }
 
     // Called when a player kills another player
@@ -192,7 +203,6 @@ public class PowerManager {
         FactionPlayer data = getPlayerData(playerUuid);
         data.setPower(PowerRules.applyGain(data.getPower(), powerGainOnKill, maxPlayerPower));
         data.setKills(data.getKills() + 1);
-        dirty.set(true);
     }
 
     // Called when a player kills a mob
@@ -200,7 +210,6 @@ public class PowerManager {
         if (powerGainOnMobKill <= 0) return;
         FactionPlayer data = getPlayerData(playerUuid);
         data.setPower(PowerRules.applyGain(data.getPower(), powerGainOnMobKill, maxPlayerPower));
-        dirty.set(true);
     }
 
     // Called when a player's faction wins a raid
@@ -219,7 +228,6 @@ public class PowerManager {
             if (player == null || !player.isOnline()) continue;
             if (data.getPower() < data.getMaxPower()) {
                 data.setPower(PowerRules.applyGain(data.getPower(), powerRegenAmount, data.getMaxPower()));
-                dirty.set(true);
             }
         }
     }
@@ -239,17 +247,14 @@ public class PowerManager {
 
         data.setPower(PowerRules.applyOfflineDecay(data.getPower(), offlineHours,
                 offlineDecayMaxHours, offlineDecayPerHour, minPlayerPower));
-        dirty.set(true);
     }
 
     public void updateLoginTime(UUID playerUuid) {
         getPlayerData(playerUuid).setLastLoginTime(System.currentTimeMillis());
-        dirty.set(true);
     }
 
     public void updateLogoutTime(UUID playerUuid) {
         getPlayerData(playerUuid).setLastLogoutTime(System.currentTimeMillis());
-        dirty.set(true);
     }
 
     // ==========================================
@@ -273,20 +278,38 @@ public class PowerManager {
     public void loadFromStore(DataStore store) {
         for (FactionPlayer data : store.loadAllPlayerData()) {
             playerDataMap.put(data.getPlayerUuid(), data);
+            // Loading hydrates the player through its normal setters, which
+            // mark it dirty; clear that so a freshly-loaded player with no
+            // real changes isn't rewritten on the very next save cycle.
+            data.clearDirty();
         }
         plugin.getLogger().info("Loaded power data for " + playerDataMap.size() + " players!");
     }
 
+    // Snapshots and clears the dirty flag of every player that has unsaved
+    // changes, so only those get written out instead of the full set.
+    private List<FactionPlayer> collectDirty() {
+        List<FactionPlayer> toSave = new ArrayList<>();
+        for (FactionPlayer data : playerDataMap.values()) {
+            if (data.isDirty()) {
+                data.clearDirty();
+                toSave.add(data);
+            }
+        }
+        return toSave;
+    }
+
     public void saveToStoreAsync(SaveQueue queue) {
-        if (!dirty.getAndSet(false)) return;
+        List<FactionPlayer> toSave = collectDirty();
+        if (toSave.isEmpty()) return;
         queue.submit(() -> {
             DataStore store = queue.store();
             try {
-                for (FactionPlayer data : playerDataMap.values()) {
+                for (FactionPlayer data : toSave) {
                     store.savePlayerData(data);
                 }
             } catch (RuntimeException e) {
-                dirty.set(true);
+                toSave.forEach(FactionPlayer::markDirty);
                 plugin.getLogger().log(Level.SEVERE, "Power data save failed, will retry on the next save cycle", e);
             }
         });
@@ -294,12 +317,13 @@ public class PowerManager {
 
     /** Synchronous save used during plugin shutdown; clears dirty only after a confirmed write. */
     public void saveToStoreSync(DataStore store) {
-        if (!dirty.get()) return;
+        List<FactionPlayer> toSave = playerDataMap.values().stream().filter(FactionPlayer::isDirty).toList();
+        if (toSave.isEmpty()) return;
         try {
-            for (FactionPlayer data : playerDataMap.values()) {
+            for (FactionPlayer data : toSave) {
                 store.savePlayerData(data);
             }
-            dirty.set(false);
+            toSave.forEach(FactionPlayer::clearDirty);
         } catch (RuntimeException e) {
             plugin.getLogger().log(Level.SEVERE, "Power data save failed during shutdown", e);
         }

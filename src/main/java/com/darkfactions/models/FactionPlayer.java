@@ -31,6 +31,12 @@ public class FactionPlayer {
     // When the player last logged out (for power decay offline)
     private volatile long lastLogoutTime;
 
+    // Tracks whether this player has unsaved changes, so PowerManager only
+    // has to persist the players that actually changed on a given save cycle
+    // instead of rewriting every player in memory. Starts true so a
+    // freshly-created player is saved at least once.
+    private volatile boolean dirty = true;
+
     public FactionPlayer(UUID playerUuid) {
         this.playerUuid = playerUuid;
         this.power = 10.0; // Default starting power (like old factions)
@@ -47,6 +53,22 @@ public class FactionPlayer {
     }
 
     // ==========================================
+    // Dirty tracking - lets PowerManager save only what changed
+    // ==========================================
+
+    public void markDirty() {
+        this.dirty = true;
+    }
+
+    public boolean isDirty() {
+        return dirty;
+    }
+
+    public void clearDirty() {
+        this.dirty = false;
+    }
+
+    // ==========================================
     // Getters and Setters
     // ==========================================
 
@@ -56,6 +78,7 @@ public class FactionPlayer {
 
     public void setPlayerUuid(UUID playerUuid) {
         this.playerUuid = playerUuid;
+        markDirty();
     }
 
     public double getPower() {
@@ -64,6 +87,7 @@ public class FactionPlayer {
 
     public void setPower(double power) {
         this.power = power;
+        markDirty();
     }
 
     public double getMaxPower() {
@@ -72,6 +96,7 @@ public class FactionPlayer {
 
     public void setMaxPower(double maxPower) {
         this.maxPower = maxPower;
+        markDirty();
     }
 
     public int getKills() {
@@ -80,6 +105,7 @@ public class FactionPlayer {
 
     public void setKills(int kills) {
         this.kills = kills;
+        markDirty();
     }
 
     public int getDeaths() {
@@ -88,6 +114,7 @@ public class FactionPlayer {
 
     public void setDeaths(int deaths) {
         this.deaths = deaths;
+        markDirty();
     }
 
     public long getLastLoginTime() {
@@ -96,6 +123,7 @@ public class FactionPlayer {
 
     public void setLastLoginTime(long lastLoginTime) {
         this.lastLoginTime = lastLoginTime;
+        markDirty();
     }
 
     public long getLastLogoutTime() {
@@ -104,5 +132,6 @@ public class FactionPlayer {
 
     public void setLastLogoutTime(long lastLogoutTime) {
         this.lastLogoutTime = lastLogoutTime;
+        markDirty();
     }
 }

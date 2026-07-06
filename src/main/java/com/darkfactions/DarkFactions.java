@@ -13,6 +13,7 @@ import com.darkfactions.storage.DatabaseManager;
 import com.darkfactions.storage.DataStore;
 import com.darkfactions.storage.SaveQueue;
 import com.darkfactions.storage.SqlStore;
+import com.darkfactions.storage.StorageException;
 import com.darkfactions.utils.ConfigManager;
 import com.darkfactions.utils.MessageUtils;
 
@@ -71,7 +72,13 @@ public class DarkFactions extends JavaPlugin {
 
         getServer().getPluginManager().registerEvents(new FactionListener(this), this);
 
-        loadAllData();
+        try {
+            loadAllData();
+        } catch (StorageException e) {
+            getLogger().log(Level.SEVERE, "Failed to load data — disabling plugin", e);
+            getServer().getPluginManager().disablePlugin(this);
+            return;
+        }
         startAutoSaveTask();
 
         getLogger().info("DarkFactions has been enabled!");

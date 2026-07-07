@@ -97,6 +97,13 @@ public class ConfigManager {
     public double getElixirTransferTaxRate() { return config.getDouble("elixir.transfer-tax-rate", 0.0); }
 
     // ==========================================
+    // SHOP
+    // ==========================================
+    public double getShopPowerCost() { return config.getDouble("shop.power-cost", 10.0); }
+    public double getShopMaxPowerCost() { return config.getDouble("shop.maxpower-cost", 20.0); }
+    public double getShopMaxPowerAmount() { return config.getDouble("shop.maxpower-amount", 5.0); }
+
+    // ==========================================
     // FACTION
     // ==========================================
     public int getMinFactionNameLength() { return config.getInt("faction.min-name-length", 2); }

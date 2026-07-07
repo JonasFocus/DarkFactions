@@ -114,10 +114,17 @@ public class FactionEconomyCommands extends AbstractFactionSubcommand {
         }
 
         double elixir = faction.getElixir();
+        double powerCost = plugin.getConfigManager().getShopPowerCost();
+        double maxPowerCost = plugin.getConfigManager().getShopMaxPowerCost();
+        double maxPowerAmount = plugin.getConfigManager().getShopMaxPowerAmount();
+
         player.sendMessage(msg.header("Faction Shop"));
         player.sendMessage(msg.info("Balance: " + String.format("%.0f", elixir) + " Elixir"));
-        player.sendMessage(msg.help("/f shop power [amount]", "Boost faction power (10 elixir per 1 power)"));
-        player.sendMessage(msg.help("/f shop maxpower [amount]", "Increase max power (20 elixir per 5 max power)"));
+        player.sendMessage(msg.help("/f shop power [amount]",
+                "Boost faction power (" + String.format("%.0f", powerCost) + " elixir per 1 power)"));
+        player.sendMessage(msg.help("/f shop maxpower [amount]",
+                "Increase max power (" + String.format("%.0f", maxPowerCost) + " elixir per "
+                        + String.format("%.0f", maxPowerAmount) + " max power)"));
 
         return true;
     }
@@ -126,7 +133,7 @@ public class FactionEconomyCommands extends AbstractFactionSubcommand {
         try {
             int amount = Integer.parseInt(amountStr);
             if (amount <= 0) { player.sendMessage(msg.error("Amount must be positive!")); return; }
-            double cost = amount * 10.0;
+            double cost = amount * plugin.getConfigManager().getShopPowerCost();
             if (plugin.getElixirManager().boostFactionPower(faction.getFactionId(), cost, amount)) {
                 player.sendMessage(msg.success("Boosted faction power by " + amount + " for " + String.format("%.0f", cost) + " elixir!"));
             } else {
@@ -141,8 +148,8 @@ public class FactionEconomyCommands extends AbstractFactionSubcommand {
         try {
             int amount = Integer.parseInt(amountStr);
             if (amount <= 0) { player.sendMessage(msg.error("Amount must be positive!")); return; }
-            double cost = amount * 4.0;
-            double powerBoost = amount * 5.0;
+            double cost = amount * plugin.getConfigManager().getShopMaxPowerCost();
+            double powerBoost = amount * plugin.getConfigManager().getShopMaxPowerAmount();
             if (plugin.getElixirManager().increaseMaxPower(faction.getFactionId(), cost, powerBoost)) {
                 player.sendMessage(msg.success("Increased max power by " + String.format("%.0f", powerBoost) + " for " + String.format("%.0f", cost) + " elixir!"));
             } else {

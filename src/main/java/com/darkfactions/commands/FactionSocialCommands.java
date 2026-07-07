@@ -301,6 +301,17 @@ public class FactionSocialCommands extends AbstractFactionSubcommand {
             return true;
         }
 
+        boolean mutual = plugin.getFactionManager().requestAlliance(faction.getFactionId(), targetFaction.getFactionId());
+
+        if (!mutual) {
+            player.sendMessage(msg.success("Alliance request sent to " + targetFaction.getName() +
+                    "! They must also run /f ally " + faction.getName() + " to confirm."));
+            broadcastToFaction(targetFaction, msg.info(
+                    faction.getName() + " has requested an alliance! Run /f ally " + faction.getName() + " to accept."
+            ));
+            return true;
+        }
+
         faction.removeEnemy(targetFaction.getFactionId());
         targetFaction.removeEnemy(faction.getFactionId());
 
@@ -308,9 +319,9 @@ public class FactionSocialCommands extends AbstractFactionSubcommand {
         targetFaction.addAlly(faction.getFactionId());
 
         player.sendMessage(msg.success("You are now allied with " + targetFaction.getName() + "!"));
-        broadcastToFaction(targetFaction, msg.info(
+        broadcastToFaction(targetFaction, msg.success(
                 plugin.getPlayerNameCache().getPlayerName(player.getUniqueId()) +
-                "'s faction has declared an alliance!"
+                "'s faction accepted the alliance! You are now allied."
         ));
 
         return true;
@@ -354,6 +365,7 @@ public class FactionSocialCommands extends AbstractFactionSubcommand {
 
         faction.removeAlly(targetFaction.getFactionId());
         targetFaction.removeAlly(faction.getFactionId());
+        plugin.getFactionManager().clearAllianceRequests(faction.getFactionId(), targetFaction.getFactionId());
 
         faction.addEnemy(targetFaction.getFactionId());
         targetFaction.addEnemy(faction.getFactionId());
@@ -395,6 +407,7 @@ public class FactionSocialCommands extends AbstractFactionSubcommand {
         faction.removeAlly(targetFaction.getFactionId());
         targetFaction.removeEnemy(faction.getFactionId());
         targetFaction.removeAlly(faction.getFactionId());
+        plugin.getFactionManager().clearAllianceRequests(faction.getFactionId(), targetFaction.getFactionId());
 
         player.sendMessage(msg.info("You are now neutral with " + targetFaction.getName() + "."));
 

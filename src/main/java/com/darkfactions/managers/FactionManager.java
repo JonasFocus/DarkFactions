@@ -34,6 +34,10 @@ public class FactionManager {
     private final Map<String, UUID> factionsByName;
     private final Set<UUID> pendingDeletions;
 
+    // Alliances require mutual consent. Keyed by the faction that received the
+    // request, valued by the set of factions that have asked to ally with it.
+    private final Map<UUID, Set<UUID>> pendingAllyRequests;
+
     public FactionManager(DarkFactions plugin) {
         this.plugin = plugin;
         this.factions = new ConcurrentHashMap<>();
@@ -41,6 +45,7 @@ public class FactionManager {
         this.pendingInvites = new ConcurrentHashMap<>();
         this.factionsByName = new ConcurrentHashMap<>();
         this.pendingDeletions = ConcurrentHashMap.newKeySet();
+        this.pendingAllyRequests = new ConcurrentHashMap<>();
     }
 
     // Kept for the handful of admin call sites that don't hold a direct Faction
@@ -91,6 +96,8 @@ public class FactionManager {
 
         pendingInvites.values().forEach(list -> list.remove(factionId));
         pendingInvites.values().removeIf(List::isEmpty);
+        pendingAllyRequests.remove(factionId);
+        pendingAllyRequests.values().forEach(set -> set.remove(factionId));
         factions.remove(factionId);
         factionsByName.remove(nameKey(faction.getName()));
         pendingDeletions.add(factionId);
@@ -228,6 +235,43 @@ public class FactionManager {
     public boolean hasPendingInvite(UUID playerUuid, UUID factionId) {
         List<UUID> invites = pendingInvites.get(playerUuid);
         return invites != null && invites.contains(factionId);
+    }
+
+    // ==========================================
+    // Alliance Requests
+    // Alliances require mutual consent: the first /f ally records a request,
+    // the target must also run /f ally back before the alliance is formed.
+    // ==========================================
+
+    /**
+     * Records an alliance request from {@code requesterFactionId} to {@code targetFactionId}.
+     *
+     * @return true if the target had already requested the requester, meaning this
+     *         call completes mutual consent and the alliance should be formed now;
+     *         false if only the request was recorded and it's still pending.
+     */
+    public boolean requestAlliance(UUID requesterFactionId, UUID targetFactionId) {
+        Set<UUID> requestsToRequester = pendingAllyRequests.get(requesterFactionId);
+        if (requestsToRequester != null && requestsToRequester.remove(targetFactionId)) {
+            return true;
+        }
+        pendingAllyRequests.computeIfAbsent(targetFactionId, k -> ConcurrentHashMap.newKeySet())
+                .add(requesterFactionId);
+        return false;
+    }
+
+    public boolean hasPendingAllyRequest(UUID targetFactionId, UUID requesterFactionId) {
+        Set<UUID> requests = pendingAllyRequests.get(targetFactionId);
+        return requests != null && requests.contains(requesterFactionId);
+    }
+
+    // Drops any pending request between the two factions in either direction, so an
+    // old request can't silently complete a future, unrelated /f ally handshake.
+    public void clearAllianceRequests(UUID factionAId, UUID factionBId) {
+        Set<UUID> requestsToA = pendingAllyRequests.get(factionAId);
+        if (requestsToA != null) requestsToA.remove(factionBId);
+        Set<UUID> requestsToB = pendingAllyRequests.get(factionBId);
+        if (requestsToB != null) requestsToB.remove(factionAId);
     }
 
     // ==========================================

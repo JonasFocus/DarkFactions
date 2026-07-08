@@ -84,4 +84,23 @@ class ClaimRulesTest {
         assertFalse(ClaimRules.violatesBuffer(claims, WORLD, 0, 0, OURS, 1));
         assertTrue(ClaimRules.violatesBuffer(claims, WORLD, 0, 0, OURS, 2));
     }
+
+    @Test
+    void canClaimMoreDisabledWhenPowerPerClaimNonPositive() {
+        assertTrue(ClaimRules.canClaimMore(100, 0.0, 0));
+        assertTrue(ClaimRules.canClaimMore(100, 0.0, -1));
+    }
+
+    @Test
+    void canClaimMoreAllowsWhenPowerCoversNextClaim() {
+        // 10 power / 2 per claim = 5 claim capacity; currently 4 → can claim 5th
+        assertTrue(ClaimRules.canClaimMore(4, 10.0, 2.0));
+    }
+
+    @Test
+    void canClaimMoreDeniesWhenPowerInsufficient() {
+        // 10 power / 2 per claim = 5 capacity; currently 5 → cannot claim 6th
+        assertFalse(ClaimRules.canClaimMore(5, 10.0, 2.0));
+        assertFalse(ClaimRules.canClaimMore(0, 1.5, 2.0), "1.5 power cannot afford first claim at 2/claim");
+    }
 }

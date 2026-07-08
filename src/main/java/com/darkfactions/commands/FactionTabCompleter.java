@@ -122,10 +122,23 @@ public class FactionTabCompleter implements TabCompleter {
                 return suggestions;
             }
 
-            if (subCmd.equals("show") || subCmd.equals("ally") ||
+            if (subCmd.equals("show") ||
                 subCmd.equals("enemy") || subCmd.equals("neutral") ||
-                subCmd.equals("accept") || subCmd.equals("deny")) {
+                subCmd.equals("accept") || subCmd.equals("deny") ||
+                subCmd.equals("disband")) {
                 return factionNameSuggestions(args[1]);
+            }
+
+            if (subCmd.equals("ally")) {
+                String partial = args[1].toLowerCase();
+                List<String> suggestions = new ArrayList<>();
+                for (String opt : Arrays.asList("accept", "deny")) {
+                    if (opt.startsWith(partial)) {
+                        suggestions.add(opt);
+                    }
+                }
+                suggestions.addAll(factionNameSuggestions(args[1]));
+                return suggestions;
             }
 
             if (subCmd.equals("top")) {
@@ -174,6 +187,17 @@ public class FactionTabCompleter implements TabCompleter {
 
             if (args[0].equalsIgnoreCase("shop") || args[0].equalsIgnoreCase("transfer")) {
                 return Arrays.asList("<amount>");
+            }
+
+            if (args[0].equalsIgnoreCase("ally")) {
+                String action = args[1].toLowerCase();
+                if (action.equals("accept") || action.equals("deny")) {
+                    return factionNameSuggestions(args[2]);
+                }
+            }
+
+            if (args[0].equalsIgnoreCase("top")) {
+                return Arrays.asList("<limit>");
             }
         }
 

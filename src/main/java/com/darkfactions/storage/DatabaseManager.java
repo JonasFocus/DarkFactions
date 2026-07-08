@@ -8,18 +8,27 @@ import java.io.File;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public class DatabaseManager implements AutoCloseable {
 
     public enum Type { SQLITE, MYSQL }
 
-    private final DarkFactions plugin;
+    private final Logger logger;
+    private final File dataFolder;
     private final Type type;
     private HikariDataSource dataSource;
 
     public DatabaseManager(DarkFactions plugin, Type type, String host, int port, String database,
                            String username, String password) {
-        this.plugin = plugin;
+        this(plugin.getLogger(), plugin.getDataFolder(), type, host, port, database, username, password);
+    }
+
+    /** Test-friendly constructor that does not require a live Bukkit plugin. */
+    public DatabaseManager(Logger logger, File dataFolder, Type type, String host, int port, String database,
+                           String username, String password) {
+        this.logger = logger;
+        this.dataFolder = dataFolder;
         this.type = type;
         init(type, host, port, database, username, password);
     }
@@ -28,7 +37,7 @@ public class DatabaseManager implements AutoCloseable {
         HikariConfig config = new HikariConfig();
 
         if (type == Type.SQLITE) {
-            File dbFile = new File(plugin.getDataFolder(), database);
+            File dbFile = new File(dataFolder, database);
             config.setJdbcUrl("jdbc:sqlite:" + dbFile.getAbsolutePath());
             config.setDriverClassName("org.sqlite.JDBC");
             config.setPoolName("DarkFactions-SQLite");
@@ -54,9 +63,9 @@ public class DatabaseManager implements AutoCloseable {
 
         try {
             this.dataSource = new HikariDataSource(config);
-            plugin.getLogger().info("Database connection established (" + type + ")");
+            logger.info("Database connection established (" + type + ")");
         } catch (Exception e) {
-            plugin.getLogger().log(Level.SEVERE, "Failed to initialize database connection", e);
+            logger.log(Level.SEVERE, "Failed to initialize database connection", e);
             throw new RuntimeException("Database initialization failed", e);
         }
     }
@@ -80,7 +89,7 @@ public class DatabaseManager implements AutoCloseable {
     public void close() {
         if (dataSource != null && !dataSource.isClosed()) {
             dataSource.close();
-            plugin.getLogger().info("Database connection pool closed.");
+            logger.info("Database connection pool closed.");
         }
     }
 }

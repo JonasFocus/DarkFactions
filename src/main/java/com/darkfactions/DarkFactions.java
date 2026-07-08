@@ -98,6 +98,9 @@ public class DarkFactions extends JavaPlugin {
             this.dataStore.createTables();
 
             int schemaVer = dataStore.getSchemaVersion();
+            // Schema version 2 means "column added AND in-memory legacy power migrated".
+            // Do not bump to 2 here — only run the ALTER; setSchemaVersion(2) happens
+            // after migrateLegacyBonusPower succeeds in loadAllData.
             migrateLegacyFactionPower = schemaVer < 2;
             if (schemaVer < 1) {
                 dataStore.setSchemaVersion(1);
@@ -105,7 +108,6 @@ public class DarkFactions extends JavaPlugin {
             }
             if (schemaVer < 2) {
                 dataStore.migrateSchema(schemaVer);
-                dataStore.setSchemaVersion(2);
             }
 
             // Single worker: SQLite serializes writes through one pooled connection
@@ -124,7 +126,11 @@ public class DarkFactions extends JavaPlugin {
 
     private void startAutoSaveTask() {
         int intervalSeconds = configManager.getAutoSaveInterval();
-        if (intervalSeconds <= 0) return;
+        if (intervalSeconds <= 0) {
+            getLogger().warning("Auto-save interval is 0 — only shutdown saves will persist data. "
+                    + "A crash can lose a full session of changes.");
+            return;
+        }
 
         long ticks = 20L * intervalSeconds;
         autoSaveTaskId = getServer().getScheduler().runTaskTimer(this, () -> {
@@ -144,6 +150,9 @@ public class DarkFactions extends JavaPlugin {
         powerManager.loadFromStore(dataStore);
         if (migrateLegacyFactionPower) {
             powerManager.migrateLegacyBonusPower();
+            // Only mark schema v2 complete after the in-memory subtraction succeeds,
+            // so a crash between ALTER and migration still re-runs migration next boot.
+            dataStore.setSchemaVersion(2);
             migrateLegacyFactionPower = false;
         }
         elixirManager.loadFromStore(dataStore);
@@ -174,6 +183,9 @@ public class DarkFactions extends JavaPlugin {
         if (autoSaveTaskId != -1) {
             getServer().getScheduler().cancelTask(autoSaveTaskId);
             autoSaveTaskId = -1;
+        }
+        if (powerManager != null) {
+            powerManager.shutdown();
         }
 
         persistAllSync();

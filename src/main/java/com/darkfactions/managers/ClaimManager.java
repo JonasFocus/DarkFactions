@@ -153,6 +153,15 @@ public class ClaimManager {
             return ClaimResult.TOO_MANY;
         }
 
+        // Power gate: each claim requires power-per-claim effective power
+        double powerPerClaim = plugin.getConfigManager().getPowerPerClaim();
+        if (powerPerClaim > 0) {
+            double effective = plugin.getPowerManager().getEffectiveFactionPower(factionId);
+            if (!ClaimRules.canClaimMore(currentClaims, effective, powerPerClaim)) {
+                return ClaimResult.INSUFFICIENT_POWER;
+            }
+        }
+
         // Elixir cost check (skip for first claim if firstClaimFree is on)
         if (claimCost > 0 && !(firstClaimFree && currentClaims == 0)) {
             Faction faction = plugin.getFactionManager().getFaction(factionId);

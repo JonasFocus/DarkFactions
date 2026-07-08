@@ -139,6 +139,33 @@ public class ElixirManager {
         }
     }
 
+    public double getPendingElixir(UUID playerUuid) {
+        return pendingElixir.getOrDefault(playerUuid, 0.0);
+    }
+
+    /** Add to a player's pending (unclaimed) elixir balance. */
+    public void addPendingElixir(UUID playerUuid, double amount) {
+        if (amount <= 0) return;
+        pendingElixir.merge(playerUuid, amount, Double::sum);
+        pendingDirty.set(true);
+    }
+
+    /** Deduct from a player's pending (unclaimed) elixir balance. */
+    public boolean removePendingElixir(UUID playerUuid, double amount) {
+        if (amount <= 0) return true;
+        double current = pendingElixir.getOrDefault(playerUuid, 0.0);
+        if (current < amount) return false;
+        double remaining = current - amount;
+        if (remaining <= 0) {
+            pendingElixir.remove(playerUuid);
+            pendingElixirDeletions.add(playerUuid);
+        } else {
+            pendingElixir.put(playerUuid, remaining);
+        }
+        pendingDirty.set(true);
+        return true;
+    }
+
     // Claim pending elixir
     public boolean claimPendingElixir(UUID playerUuid) {
         if (!pendingElixir.containsKey(playerUuid)) return false;

@@ -30,11 +30,15 @@ public class FactionTerritoryCommands extends AbstractFactionSubcommand {
     // on movement or damage.
     private final Map<UUID, BukkitTask> pendingWarmups;
 
+    // Pending /f logout warmups — cancelled on movement or re-tag (damage).
+    private final Map<UUID, BukkitTask> pendingLogoutWarmups;
+
     public FactionTerritoryCommands(DarkFactions plugin) {
         super(plugin);
         this.autoClaimMap = new ConcurrentHashMap<>();
         this.homeCooldowns = new ConcurrentHashMap<>();
         this.pendingWarmups = new ConcurrentHashMap<>();
+        this.pendingLogoutWarmups = new ConcurrentHashMap<>();
     }
 
     // ==========================================
@@ -48,6 +52,13 @@ public class FactionTerritoryCommands extends AbstractFactionSubcommand {
 
         if (!requireOfficerOrMemberPermitted(player, faction, plugin.getConfigManager().isMembersCanSetHome(),
                 "Only the leader and officers can set the faction home!")) return true;
+
+        Chunk chunk = player.getLocation().getChunk();
+        UUID ownerId = plugin.getClaimManager().getClaimOwner(chunk);
+        if (ownerId == null || !ownerId.equals(faction.getFactionId())) {
+            player.sendMessage(msg.error("You can only set home in your faction's claimed land!"));
+            return true;
+        }
 
         plugin.getFactionManager().setFactionHome(faction.getFactionId(), player.getLocation());
         player.sendMessage(msg.success("Faction home has been set!"));
@@ -113,7 +124,7 @@ public class FactionTerritoryCommands extends AbstractFactionSubcommand {
         return true;
     }
 
-    // Cancel a pending warmup for a player. Called from the listener on move/damage.
+    // Cancel a pending home warmup for a player. Called from the listener on move/damage.
     public void cancelWarmup(UUID playerUuid, boolean dueToDamage) {
         BukkitTask task = pendingWarmups.remove(playerUuid);
         if (task != null) {
@@ -124,6 +135,22 @@ public class FactionTerritoryCommands extends AbstractFactionSubcommand {
                     player.sendMessage(msg.error("Teleport cancelled due to damage!"));
                 } else {
                     player.sendMessage(msg.error("Teleport cancelled!"));
+                }
+            }
+        }
+    }
+
+    // Cancel a pending /f logout warmup. Called from the listener on move/damage.
+    public void cancelLogoutWarmup(UUID playerUuid, boolean dueToDamage) {
+        BukkitTask task = pendingLogoutWarmups.remove(playerUuid);
+        if (task != null) {
+            task.cancel();
+            Player player = Bukkit.getPlayer(playerUuid);
+            if (player != null && player.isOnline()) {
+                if (dueToDamage) {
+                    player.sendMessage(msg.error("Safe logout cancelled - you took damage!"));
+                } else {
+                    player.sendMessage(msg.error("Safe logout cancelled - you moved!"));
                 }
             }
         }
@@ -175,7 +202,31 @@ public class FactionTerritoryCommands extends AbstractFactionSubcommand {
         }
 
         if (!ownerId.equals(faction.getFactionId())) {
-            player.sendMessage(msg.error("This chunk belongs to another faction!"));
+            if (!plugin.getConfigManager().isCanUnclaimEnemy()) {
+                player.sendMessage(msg.error("This chunk belongs to another faction!"));
+                return true;
+            }
+
+            Faction ownerFaction = plugin.getFactionManager().getFaction(ownerId);
+            if (ownerFaction == null) {
+                player.sendMessage(msg.error("This chunk belongs to another faction!"));
+                return true;
+            }
+
+            if (!faction.isEnemy(ownerId)) {
+                player.sendMessage(msg.error("You can only raid-unclaim land from enemy factions!"));
+                return true;
+            }
+
+            if (!plugin.getPowerManager().isFactionRaidable(ownerId)) {
+                player.sendMessage(msg.error("That faction is not raidable yet!"));
+                return true;
+            }
+
+            plugin.getClaimManager().unclaimChunk(chunk);
+            plugin.getPowerManager().onRaidWin(faction.getFactionId());
+            plugin.getElixirManager().onSuccessfulRaid(faction.getFactionId(), ownerId);
+            player.sendMessage(msg.success("Raid unclaim! You took land from " + ownerFaction.getName() + "!"));
             return true;
         }
 
@@ -324,7 +375,7 @@ public class FactionTerritoryCommands extends AbstractFactionSubcommand {
 
     // ==========================================
     // LOGOUT - /f logout
-    // Safe logout with warmup (cancelled on damage)
+    // Safe logout with warmup (cancelled on damage or movement)
     // ==========================================
     boolean handleLogout(Player player) {
 
@@ -344,12 +395,19 @@ public class FactionTerritoryCommands extends AbstractFactionSubcommand {
             return true;
         }
 
+        // Replace any in-flight logout warmup for this player.
+        BukkitTask previous = pendingLogoutWarmups.remove(playerUuid);
+        if (previous != null) {
+            previous.cancel();
+        }
+
         // A fresh hit during the warmup pushes the tag expiry forward; compare
         // against the expiry captured now to detect it and abort the logout.
         long expiryAtStart = plugin.getCombatManager().getTagExpiry(playerUuid);
 
-        player.sendMessage(msg.info("Logging out in " + warmup + " seconds... don't take damage."));
-        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+        player.sendMessage(msg.info("Logging out in " + warmup + " seconds... don't move or take damage."));
+        BukkitTask task = plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+            pendingLogoutWarmups.remove(playerUuid);
             if (!player.isOnline()) {
                 return;
             }
@@ -360,6 +418,7 @@ public class FactionTerritoryCommands extends AbstractFactionSubcommand {
             plugin.getCombatManager().clear(playerUuid);
             player.kick(Component.text("You have safely logged out."));
         }, warmup * 20L);
+        pendingLogoutWarmups.put(playerUuid, task);
 
         return true;
     }

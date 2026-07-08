@@ -45,6 +45,14 @@ public class FactionChatService {
             return; // Normal chat
         }
 
+        boolean allyMode = "ally".equals(chatMode);
+        if (allyMode && !plugin.getConfigManager().isAllyChatEnabled()) {
+            return;
+        }
+        if (!allyMode && !plugin.getConfigManager().isFactionChatEnabled()) {
+            return;
+        }
+
         // Cancel the normal chat broadcast
         event.setCancelled(true);
 
@@ -52,7 +60,6 @@ public class FactionChatService {
         String prefix = LegacyComponentSerializer.legacySection()
                 .serialize(plugin.getMessageUtils().getChatPrefix()); // Get formatted prefix
 
-        boolean allyMode = "ally".equals(chatMode);
         String template = allyMode
                 ? plugin.getConfigManager().getAllyChatFormat()
                 : plugin.getConfigManager().getFactionChatFormat();

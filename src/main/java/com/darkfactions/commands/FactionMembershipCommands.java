@@ -52,9 +52,26 @@ public class FactionMembershipCommands extends AbstractFactionSubcommand {
             return true;
         }
 
+        if (plugin.getFactionManager().getPlayerFaction(player.getUniqueId()) != null) {
+            player.sendMessage(msg.error("Failed to create faction! Are you already in one?"));
+            return true;
+        }
+
+        double createCost = plugin.getConfigManager().getElixirCreateFactionCost();
+        if (createCost > 0) {
+            if (!plugin.getElixirManager().removePendingElixir(player.getUniqueId(), createCost)) {
+                player.sendMessage(msg.error("You need " + String.format("%.0f", createCost)
+                        + " pending elixir to create a faction!"));
+                return true;
+            }
+        }
+
         Faction faction = plugin.getFactionManager().createFaction(factionName, player.getUniqueId());
 
         if (faction == null) {
+            if (createCost > 0) {
+                plugin.getElixirManager().addPendingElixir(player.getUniqueId(), createCost);
+            }
             player.sendMessage(msg.error("Failed to create faction! Are you already in one?"));
             return true;
         }
@@ -62,14 +79,18 @@ public class FactionMembershipCommands extends AbstractFactionSubcommand {
         player.sendMessage(msg.success("Faction '" + factionName + "' has been created!"));
         player.sendMessage(msg.info("Use /f invite <player> to add members!"));
 
+        if (plugin.getConfigManager().isBroadcastFactionNews()) {
+            Bukkit.broadcast(msg.info("Faction '" + factionName + "' has been founded by " + player.getName() + "!"));
+        }
+
         return true;
     }
 
     // ==========================================
-    // DISBAND - /f disband
-    // Deletes the faction (leader only)
+    // DISBAND - /f disband [factionName]
+    // Deletes the faction (leader only); optional name confirm
     // ==========================================
-    boolean handleDisband(Player player) {
+    boolean handleDisband(Player player, String[] args) {
 
         Faction faction = requireFaction(player);
         if (faction == null) return true;
@@ -77,6 +98,13 @@ public class FactionMembershipCommands extends AbstractFactionSubcommand {
         if (!requireLeader(player, faction, "Only the faction leader can disband the faction!")) return true;
 
         String factionName = faction.getName();
+
+        if (plugin.getConfigManager().isDisbandRequiresConfirm()) {
+            if (args.length < 2 || !args[1].equalsIgnoreCase(factionName)) {
+                player.sendMessage(msg.error("To confirm, type /f disband " + factionName));
+                return true;
+            }
+        }
 
         // deleteFaction() already removes this faction's claims internally.
         plugin.getFactionManager().deleteFaction(faction.getFactionId());
@@ -90,6 +118,10 @@ public class FactionMembershipCommands extends AbstractFactionSubcommand {
         }
 
         player.sendMessage(msg.success("Faction '" + factionName + "' has been disbanded!"));
+
+        if (plugin.getConfigManager().isBroadcastFactionNews()) {
+            Bukkit.broadcast(msg.info("Faction '" + factionName + "' has been disbanded!"));
+        }
 
         return true;
     }
@@ -378,7 +410,10 @@ public class FactionMembershipCommands extends AbstractFactionSubcommand {
             return true;
         }
 
-        plugin.getFactionManager().promotePlayer(targetUuid, faction.getFactionId());
+        if (!plugin.getFactionManager().promotePlayer(targetUuid, faction.getFactionId())) {
+            player.sendMessage(msg.error("Cannot promote: maximum number of officers reached!"));
+            return true;
+        }
         player.sendMessage(msg.success(args[1] + " has been promoted to officer!"));
 
         Player target = Bukkit.getPlayer(targetUuid);
@@ -493,12 +528,22 @@ public class FactionMembershipCommands extends AbstractFactionSubcommand {
             return true;
         }
 
+        double renameCost = plugin.getConfigManager().getElixirRenameCost();
+        if (renameCost > 0 && !faction.removeElixir(renameCost)) {
+            player.sendMessage(msg.error("Your faction needs " + String.format("%.0f", renameCost)
+                    + " elixir to rename!"));
+            return true;
+        }
+
         String oldName = faction.getName();
 
         if (plugin.getFactionManager().renameFaction(faction.getFactionId(), newName)) {
             player.sendMessage(msg.success("Faction renamed from '" + oldName + "' to '" + newName + "'!"));
             broadcastToFaction(faction, msg.info("Faction has been renamed to '" + newName + "'!"));
         } else {
+            if (renameCost > 0) {
+                faction.addElixir(renameCost);
+            }
             player.sendMessage(msg.error("That name is already taken!"));
         }
 

@@ -2,25 +2,8 @@
 # DarkFactions - Ultra Customizable Config
 # ==========================================
 # Every aspect of the plugin can be tuned here.
-# Reload with: /f admin reload
+# Reload with: /f reload
 # ==========================================
-
-# ==========================================
-# QUICK START
-# ==========================================
-# New to DarkFactions? Tweak these values first.
-# Everything below has a sensible default.
-# ==========================================
-quick-start:
-  power:
-    max-player-power: 10.0
-    loss-on-death: 1.0
-    offline-decay-enabled: false
-  claiming:
-    max-per-faction: 25
-    require-connection: true
-  faction:
-    max-members: 30
 
 # ==========================================
 # DATABASE
@@ -43,17 +26,9 @@ database:
 # GENERAL SETTINGS
 # ==========================================
 general:
-  # Language file (future use - en, fr, de, es, etc.)
-  language: en
-
-  # Check for updates on startup
-  check-updates: true
-
-  # Metrics/analytics tracking
-  metrics-enabled: false
-
-  # How often data is written to the database (in seconds, 0 = disabled)
-  # Data is always in memory, this is just persistence frequency
+  # How often data is written to the database (in seconds).
+  # 0 means only shutdown saves; a crash can lose a full session of changes.
+  # Data is always in memory; this is just persistence frequency.
   auto-save-interval-seconds: 300
 
 # ==========================================
@@ -103,6 +78,12 @@ power:
   # Power gained for winning a raid
   gain-on-raid-win: 5.0
 
+  # Power required per claimed chunk (faction effective power must be >= claims * this)
+  power-per-claim: 1.0
+
+  # Power threshold per member below which a faction is raidable
+  raidable-power-per-member: 0.5
+
 # ==========================================
 # ELIXIR SETTINGS
 # Controls the faction economy / points system
@@ -132,9 +113,6 @@ elixir:
   # Elixir lost when a chunk is unclaimed/raided
   per-chunk-lost: 2.0
 
-  # Elixir earned per hour of playtime
-  per-playtime-hour: 2.0
-
   # Cost (in elixir) to create a new faction (0 = free)
   create-faction-cost: 0.0
 
@@ -149,6 +127,15 @@ elixir:
 
   # Tax rate for faction transfers (0.0 = no tax, 0.1 = 10% tax)
   transfer-tax-rate: 0.0
+
+  # Shop: elixir cost per +1 bonus power
+  shop-power-cost: 10.0
+
+  # Shop: elixir cost per +5 max power
+  shop-max-power-cost: 20.0
+
+  # How much max power each shop purchase grants
+  shop-max-power-amount: 5.0
 
 # ==========================================
 # FACTION SETTINGS
@@ -255,30 +242,8 @@ claim:
   # Whether players can unclaim chunks from other factions (raid-style)
   can-unclaim-enemy: false
 
-  # Chunks needed to claim/unclaim at once (0 = no limit)
-  max-claim-per-session: 0
-  max-unclaim-per-session: 0
-
   # Buffer zone around each claim (in chunks) - prevents corner-touching
   claim-buffer-chunks: 0
-
-  # Whether to show the chunk border particles when claiming
-  show-border-particles: true
-
-  # Particle type for claim borders (https://hub.spigotmc.org/javadocs/spigot/org/bukkit/Particle.html)
-  border-particle-type: "REDSTONE"
-
-  # Particle color (RGB) for own faction border
-  border-own-color:
-    red: 0
-    green: 255
-    blue: 0
-
-  # Particle color (RGB) for enemy faction border
-  border-enemy-color:
-    red: 255
-    green: 0
-    blue: 0
 
 # ==========================================
 # TERRITORY PROTECTION
@@ -434,13 +399,6 @@ leaderboard:
   # Maximum limit allowed
   max-limit: 50
 
-  # Sort options enabled (power, elixir, members, land)
-  sort-options:
-    - power
-    - elixir
-    - members
-    - land
-
 # ==========================================
 # COMBAT SETTINGS
 # Controls combat tagging and logout behavior
@@ -462,7 +420,7 @@ combat:
   logout-warmup-seconds: 10
 
 # ==========================================
-# ADMIN & ECONOMY SETTINGS
+# ADMIN SETTINGS
 # ==========================================
 admin:
   # Whether players with darkfactions.admin bypass all protection
@@ -470,10 +428,3 @@ admin:
 
   # Whether admin commands are logged to console
   log-admin-actions: true
-
-economy:
-  # Example: integration with Vault (future)
-  # Vault economy integration for elixir <-> money conversion
-  vault-enabled: false
-  vault-elixir-to-money-rate: 10.0  # 1 elixir = 10 money
-  vault-money-to-elixir-rate: 12.0  # 12 money = 1 elixir (fee)

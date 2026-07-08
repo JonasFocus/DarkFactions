@@ -18,6 +18,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public class SqlStore implements DataStore {
 
@@ -30,11 +31,16 @@ public class SqlStore implements DataStore {
     private static final String RELATION_ALLY = "ALLY";
     private static final String RELATION_ENEMY = "ENEMY";
 
-    private final DarkFactions plugin;
+    private final Logger logger;
     private final DatabaseManager db;
 
     public SqlStore(DarkFactions plugin, DatabaseManager db) {
-        this.plugin = plugin;
+        this(plugin.getLogger(), db);
+    }
+
+    /** Test-friendly constructor that does not require a live Bukkit plugin. */
+    public SqlStore(Logger logger, DatabaseManager db) {
+        this.logger = logger;
         this.db = db;
     }
 
@@ -123,7 +129,7 @@ public class SqlStore implements DataStore {
              ResultSet rs = s.executeQuery()) {
             return rs.next() ? rs.getInt(1) : 0;
         } catch (SQLException e) {
-            plugin.getLogger().log(Level.SEVERE, "Failed to read schema version", e);
+            logger.log(Level.SEVERE, "Failed to read schema version", e);
             return 0;
         }
     }
@@ -146,7 +152,7 @@ public class SqlStore implements DataStore {
         if (!columnExists("factions", "bonus_power")) {
             execute("ALTER TABLE factions ADD COLUMN bonus_power DOUBLE DEFAULT 0");
             execute("UPDATE factions SET bonus_power = power");
-            plugin.getLogger().info("Added factions.bonus_power and copied legacy power values.");
+            logger.info("Added factions.bonus_power and copied legacy power values.");
         }
     }
 
@@ -163,7 +169,7 @@ public class SqlStore implements DataStore {
                 return rs.next();
             }
         } catch (SQLException e) {
-            plugin.getLogger().log(Level.WARNING, "Could not inspect column " + table + "." + column, e);
+            logger.log(Level.WARNING, "Could not inspect column " + table + "." + column, e);
             return false;
         }
     }
@@ -223,7 +229,7 @@ public class SqlStore implements DataStore {
                 result.put(f.getFactionId(), f);
             }
         } catch (SQLException e) {
-            plugin.getLogger().log(Level.SEVERE, "Failed to load factions", e);
+            logger.log(Level.SEVERE, "Failed to load factions", e);
             throw new StorageException("Failed to load factions", e);
         }
 
@@ -247,7 +253,7 @@ public class SqlStore implements DataStore {
                 }
             }
         } catch (SQLException e) {
-            plugin.getLogger().log(Level.SEVERE, "Failed to load faction members", e);
+            logger.log(Level.SEVERE, "Failed to load faction members", e);
             throw new StorageException("Failed to load faction members", e);
         }
 
@@ -271,7 +277,7 @@ public class SqlStore implements DataStore {
                 }
             }
         } catch (SQLException e) {
-            plugin.getLogger().log(Level.SEVERE, "Failed to load faction relations", e);
+            logger.log(Level.SEVERE, "Failed to load faction relations", e);
             throw new StorageException("Failed to load faction relations", e);
         }
 
@@ -378,7 +384,7 @@ public class SqlStore implements DataStore {
                 c.setAutoCommit(previousAutoCommit);
             }
         } catch (SQLException e) {
-            plugin.getLogger().log(Level.SEVERE, "Failed to save faction " + faction.getName(), e);
+            logger.log(Level.SEVERE, "Failed to save faction " + faction.getName(), e);
             throw new StorageException("Failed to save faction " + faction.getName(), e);
         }
     }
@@ -418,7 +424,7 @@ public class SqlStore implements DataStore {
                 c.setAutoCommit(previousAutoCommit);
             }
         } catch (SQLException e) {
-            plugin.getLogger().log(Level.SEVERE, "Failed to delete faction " + fid, e);
+            logger.log(Level.SEVERE, "Failed to delete faction " + fid, e);
             throw new StorageException("Failed to delete faction " + fid, e);
         }
     }
@@ -437,7 +443,7 @@ public class SqlStore implements DataStore {
                 map.put(key, UUID.fromString(rs.getString("faction_id")));
             }
         } catch (SQLException e) {
-            plugin.getLogger().log(Level.SEVERE, "Failed to load claims", e);
+            logger.log(Level.SEVERE, "Failed to load claims", e);
             throw new StorageException("Failed to load claims", e);
         }
         return map;
@@ -483,7 +489,7 @@ public class SqlStore implements DataStore {
                 map.put(p.getPlayerUuid(), p);
             }
         } catch (SQLException e) {
-            plugin.getLogger().log(Level.SEVERE, "Failed to load player data", e);
+            logger.log(Level.SEVERE, "Failed to load player data", e);
             throw new StorageException("Failed to load player data", e);
         }
         return map.values();
@@ -520,7 +526,7 @@ public class SqlStore implements DataStore {
                 map.put(UUID.fromString(rs.getString("uuid")), rs.getString("name"));
             }
         } catch (SQLException e) {
-            plugin.getLogger().log(Level.SEVERE, "Failed to load player names", e);
+            logger.log(Level.SEVERE, "Failed to load player names", e);
             throw new StorageException("Failed to load player names", e);
         }
         return map;
@@ -545,7 +551,7 @@ public class SqlStore implements DataStore {
                 map.put(UUID.fromString(rs.getString("player_uuid")), rs.getDouble("amount"));
             }
         } catch (SQLException e) {
-            plugin.getLogger().log(Level.SEVERE, "Failed to load pending elixir", e);
+            logger.log(Level.SEVERE, "Failed to load pending elixir", e);
             throw new StorageException("Failed to load pending elixir", e);
         }
         return map;
@@ -575,7 +581,7 @@ public class SqlStore implements DataStore {
                 map.put(UUID.fromString(rs.getString("player_uuid")), rs.getLong("claimed_at"));
             }
         } catch (SQLException e) {
-            plugin.getLogger().log(Level.SEVERE, "Failed to load daily elixir claims", e);
+            logger.log(Level.SEVERE, "Failed to load daily elixir claims", e);
             throw new StorageException("Failed to load daily elixir claims", e);
         }
         return map;
@@ -602,7 +608,7 @@ public class SqlStore implements DataStore {
             bind(s, params);
             s.executeUpdate();
         } catch (SQLException e) {
-            plugin.getLogger().log(Level.SEVERE, "SQL error: " + sql, e);
+            logger.log(Level.SEVERE, "SQL error: " + sql, e);
             throw new StorageException("SQL error: " + sql, e);
         }
     }

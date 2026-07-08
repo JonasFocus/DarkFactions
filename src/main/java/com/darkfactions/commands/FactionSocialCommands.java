@@ -137,6 +137,13 @@ public class FactionSocialCommands extends AbstractFactionSubcommand {
             return true;
         }
 
+        double tagCost = plugin.getConfigManager().getElixirSetTagCost();
+        if (tagCost > 0 && !faction.removeElixir(tagCost)) {
+            player.sendMessage(msg.error("Your faction needs " + String.format("%.0f", tagCost)
+                    + " elixir to set a tag!"));
+            return true;
+        }
+
         faction.setTag(tag);
         player.sendMessage(msg.success("Faction tag set to [" + tag + "]!"));
 
@@ -218,6 +225,11 @@ public class FactionSocialCommands extends AbstractFactionSubcommand {
     // ==========================================
     boolean handleChat(Player player) {
 
+        if (!plugin.getConfigManager().isFactionChatEnabled()) {
+            player.sendMessage(msg.error("Faction chat is disabled on this server!"));
+            return true;
+        }
+
         Faction faction = requireFaction(player);
         if (faction == null) return true;
 
@@ -240,6 +252,11 @@ public class FactionSocialCommands extends AbstractFactionSubcommand {
     // Toggles ally chat mode
     // ==========================================
     boolean handleAllyChat(Player player) {
+
+        if (!plugin.getConfigManager().isAllyChatEnabled()) {
+            player.sendMessage(msg.error("Ally chat is disabled on this server!"));
+            return true;
+        }
 
         Faction faction = requireFaction(player);
         if (faction == null) return true;
@@ -268,12 +285,12 @@ public class FactionSocialCommands extends AbstractFactionSubcommand {
     }
 
     // ==========================================
-    // ALLY - /f ally <faction>
-    // Send an ally request to another faction
+    // ALLY - /f ally <faction> | /f ally accept|deny <faction>
+    // Send or respond to an ally request
     // ==========================================
     boolean handleAlly(Player player, String[] args) {
 
-        if (!requireArgs(player, args, 2, "/f ally <faction>")) return true;
+        if (!requireArgs(player, args, 2, "/f ally <faction> | /f ally accept|deny <faction>")) return true;
 
         if (!player.hasPermission("darkfactions.ally")) {
             player.sendMessage(msg.error("You don't have permission to manage alliances!"));
@@ -284,6 +301,20 @@ public class FactionSocialCommands extends AbstractFactionSubcommand {
         if (faction == null) return true;
 
         if (!requireOfficer(player, faction, "Only leaders and officers can manage alliances!")) return true;
+
+        String action = args[1].toLowerCase();
+        if (action.equals("accept") || action.equals("deny")) {
+            if (!requireArgs(player, args, 3, "/f ally " + action + " <faction>")) return true;
+            Faction requesting = plugin.getFactionManager().getFactionByName(args[2]);
+            if (requesting == null) {
+                player.sendMessage(msg.error("No faction found with that name!"));
+                return true;
+            }
+            if (action.equals("accept")) {
+                return handleAllyAccept(player, faction, requesting);
+            }
+            return handleAllyDeny(player, faction, requesting);
+        }
 
         Faction targetFaction = plugin.getFactionManager().getFactionByName(args[1]);
         if (targetFaction == null) {
@@ -301,18 +332,54 @@ public class FactionSocialCommands extends AbstractFactionSubcommand {
             return true;
         }
 
-        faction.removeEnemy(targetFaction.getFactionId());
-        targetFaction.removeEnemy(faction.getFactionId());
+        if (plugin.getFactionManager().hasPendingAllyRequest(faction.getFactionId(), targetFaction.getFactionId())) {
+            player.sendMessage(msg.error("You already have a pending ally request to " + targetFaction.getName() + "!"));
+            return true;
+        }
 
-        faction.addAlly(targetFaction.getFactionId());
-        targetFaction.addAlly(faction.getFactionId());
+        // If they already sent us a request, accepting is cleaner than a second outbound request
+        if (plugin.getFactionManager().hasPendingAllyRequest(targetFaction.getFactionId(), faction.getFactionId())) {
+            return handleAllyAccept(player, faction, targetFaction);
+        }
 
-        player.sendMessage(msg.success("You are now allied with " + targetFaction.getName() + "!"));
-        broadcastToFaction(targetFaction, msg.info(
-                plugin.getPlayerNameCache().getPlayerName(player.getUniqueId()) +
-                "'s faction has declared an alliance!"
-        ));
+        plugin.getFactionManager().sendAllyRequest(faction.getFactionId(), targetFaction.getFactionId());
+        player.sendMessage(msg.success("Ally request sent to " + targetFaction.getName() + "!"));
 
+        String requesterName = plugin.getPlayerNameCache().getPlayerName(player.getUniqueId());
+        for (UUID memberUuid : targetFaction.getMembers()) {
+            if (!targetFaction.isLeader(memberUuid) && !targetFaction.isOfficer(memberUuid)) {
+                continue;
+            }
+            Player officer = org.bukkit.Bukkit.getPlayer(memberUuid);
+            if (officer != null && officer.isOnline()) {
+                officer.sendMessage(msg.info(requesterName + "'s faction (" + faction.getName()
+                        + ") wants to ally! Use /f ally accept " + faction.getName()));
+            }
+        }
+
+        return true;
+    }
+
+    private boolean handleAllyAccept(Player player, Faction faction, Faction requesting) {
+        if (!plugin.getFactionManager().acceptAllyRequest(faction.getFactionId(), requesting.getFactionId())) {
+            player.sendMessage(msg.error("No pending ally request from " + requesting.getName() + "!"));
+            return true;
+        }
+
+        player.sendMessage(msg.success("You are now allied with " + requesting.getName() + "!"));
+        broadcastToFaction(faction, msg.info("Your faction is now allied with " + requesting.getName() + "!"));
+        broadcastToFaction(requesting, msg.info(faction.getName() + " accepted your ally request!"));
+        return true;
+    }
+
+    private boolean handleAllyDeny(Player player, Faction faction, Faction requesting) {
+        if (!plugin.getFactionManager().denyAllyRequest(faction.getFactionId(), requesting.getFactionId())) {
+            player.sendMessage(msg.error("No pending ally request from " + requesting.getName() + "!"));
+            return true;
+        }
+
+        player.sendMessage(msg.info("Denied ally request from " + requesting.getName() + "."));
+        broadcastToFaction(requesting, msg.info(faction.getName() + " denied your ally request."));
         return true;
     }
 

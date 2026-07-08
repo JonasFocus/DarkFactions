@@ -1,79 +1,73 @@
-<div align="center">
+# DarkFactions
 
-# ⚔️ DarkFactions
-
-### A nostalgic factions experience for modern Minecraft servers
+A nostalgic factions experience for modern Minecraft servers.
 
 Claim land. Build power. Forge alliances. Raid your rivals.
 
-<br/>
+![Minecraft](https://img.shields.io/badge/Minecraft-26.1.2-blue)
+![Paper](https://img.shields.io/badge/Paper-API-orange)
+![Java](https://img.shields.io/badge/Java-25-red)
+![Version](https://img.shields.io/badge/version-1.0.0-brightgreen)
 
-![Status](https://img.shields.io/badge/status-revived%20%26%20maintained-brightgreen?style=for-the-badge)
-![Minecraft](https://img.shields.io/badge/Minecraft-26.1.2-blue?style=for-the-badge&logo=minecraft)
-![Paper](https://img.shields.io/badge/Paper-API-orange?style=for-the-badge)
-![Java](https://img.shields.io/badge/Java-25-red?style=for-the-badge&logo=openjdk)
+## Requirements
 
-</div>
-
----
-
-> [!NOTE]
-> **DarkFactions is back.** This plugin has been revived and is once again actively maintained, rebuilt against the latest Paper API. Expect ongoing fixes, refinements, and new features.
-
-## ✨ Features
-
-- 🏰 **Factions** — create a faction, invite members, manage roles, and rule together.
-- 🌍 **Land Claiming** — claim chunks for your faction with connection and buffer rules to keep territory honest.
-- ⚡ **Power System** — gain power from kills and raids, lose it on death, and decay while offline. Run out and your land becomes raidable.
-- 🧪 **Elixir Economy** — earn and spend Elixir points, the lifeblood of expansion.
-- 🤝 **Alliances & Enemies** — set relations, share ally chat, and coordinate against your foes.
-- 💬 **Faction & Ally Chat** — private channels for your faction and trusted allies.
-- ⚙️ **Fully Configurable** — every limit, cost, and toggle lives in `config.yml`.
-
-## 🚀 Getting Started
-
-**Requirements**
-
-- A Paper (or compatible Spigot) server running Minecraft `26.1.2`
+- Paper (or compatible) server on Minecraft `26.1.2`
 - Java 25+
 
-**Install**
+## Install
 
-1. Download the latest `DarkFactions-3.1.jar` (or build it yourself, below).
+1. Download `DarkFactions-1.0.0.jar` from [GitHub Releases](https://github.com/JonasFocus/DarkFactions/releases).
 2. Drop it into your server's `plugins/` folder.
-3. Restart the server. Configuration generates automatically at `plugins/DarkFactions/config.yml`.
+3. Restart the server. Config generates at `plugins/DarkFactions/config.yml`.
+4. Tune values, then run `/f reload`.
 
-## 🎮 Commands
+### Database
+
+SQLite is the default (file under the plugin data folder). For larger servers, set `database.type: MYSQL` and fill in the MySQL connection block.
+
+Data is kept in memory and flushed on the auto-save interval (default 300 seconds) and on shutdown. Setting `general.auto-save-interval-seconds: 0` disables periodic saves; only a clean shutdown will persist changes.
+
+## Permissions
+
+| Permission | Default | Purpose |
+| --- | --- | --- |
+| `darkfactions.use` | true | Use basic faction commands |
+| `darkfactions.create` | true | Create a faction |
+| `darkfactions.ally` | true | Manage ally / enemy / neutral relations |
+| `darkfactions.admin` | op | Admin commands and `/f reload` |
+
+## Commands
 
 Everything runs through `/f` (aliases: `/faction`, `/fac`, `/factions`).
 
 | Category | Commands |
 | --- | --- |
-| **Faction** | `create` · `disband` · `invite` · `accept` · `deny` · `kick` · `leave` · `promote` · `demote` · `leader` · `rename` |
+| **Faction** | `create` · `disband` · `invite` · `uninvite` · `accept` · `deny` · `invites` · `kick` · `leave` · `promote` · `demote` · `leader` · `rename` |
 | **Land** | `claim` · `unclaim` · `unclaimall` · `autoclaim` · `map` |
 | **Home** | `sethome` · `home` |
-| **Info** | `info` · `list` · `show` · `top` |
-| **Economy** | `power` · `elixir` · `bal` |
+| **Info** | `who` / `info` · `list` · `show` · `top [power\|elixir\|members\|land]` |
+| **Economy** | `power` · `elixir` · `bal` · `shop` · `transfer` |
 | **Settings** | `motd` · `desc` · `tag` · `open` · `pvp` · `tnt` |
-| **Chat** | `chat` · `allychat` |
-| **Relations** | `ally` · `enemy` · `neutral` |
-| **Admin** | `admin` · `reload` · `fly` |
+| **Chat** | `chat` / `fc` · `allychat` / `ac` |
+| **Relations** | `ally` · `ally accept` · `ally deny` · `enemy` · `neutral` |
+| **Combat** | `fly` · `logout` |
+| **Admin** | `admin` · `reload` |
 
-## 🛠️ Building from Source
+### Classic loop (1.0)
+
+- Faction effective power limits how many chunks you can claim (`power.power-per-claim`).
+- Low-power factions are raidable; with `claim.can-unclaim-enemy: true`, enemies can unclaim raidable land and earn raid rewards.
+- `/f ally <name>` sends a request; the other faction accepts or denies.
+- `/f disband` requires typing the faction name when confirmation is enabled.
+
+## Building from Source
 
 ```bash
 mvn clean package
 ```
 
-The compiled plugin lands in `target/DarkFactions-3.1.jar`.
+The shaded plugin jar is `target/DarkFactions-1.0.0.jar`.
 
-## 📜 License
+## License
 
-See the repository for license details.
-
-<div align="center">
-<br/>
-
-**Rally your faction. The world is yours to claim.**
-
-</div>
+MIT. See [LICENSE](LICENSE).

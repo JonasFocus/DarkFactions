@@ -6,7 +6,7 @@
 
     <groupId>com.darkfactions</groupId>
     <artifactId>DarkFactions</artifactId>
-    <version>3.2</version>
+    <version>1.0.0</version>
     <packaging>jar</packaging>
 
     <name>DarkFactions</name>

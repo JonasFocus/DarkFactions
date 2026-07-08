@@ -14,6 +14,7 @@ public enum ClaimResult {
     ALREADY_CLAIMED(false, "This chunk is already claimed by another faction!"),
     NOT_CONNECTED(false, "You must claim land adjacent to your existing territory first!"),
     TOO_MANY(false, "Your faction has reached the maximum number of claims!"),
+    INSUFFICIENT_POWER(false, "Your faction doesn't have enough power to claim more land!"),
     NO_ELIXIR(false, "Your faction doesn't have enough elixir to claim this chunk!"),
     DISABLED(false, "Land claiming is disabled on this server!"),
     DISABLED_WORLD(false, "You cannot claim land in this world!"),

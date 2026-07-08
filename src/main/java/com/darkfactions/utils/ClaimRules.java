@@ -63,4 +63,16 @@ public final class ClaimRules {
         }
         return false;
     }
+
+    /**
+     * True if the faction can afford one more claim given its effective power
+     * and the configured power-per-claim cost. A {@code powerPerClaim <= 0}
+     * disables the gate (always allowed).
+     */
+    public static boolean canClaimMore(int currentClaims, double effectivePower, double powerPerClaim) {
+        if (powerPerClaim <= 0) {
+            return true;
+        }
+        return currentClaims + 1 <= effectivePower / powerPerClaim;
+    }
 }

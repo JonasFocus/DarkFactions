@@ -82,7 +82,7 @@ public class FactionCommand implements CommandExecutor {
             // Basic faction commands
             // ==========================================
             case "create":    return membershipCommands.handleCreate(player, args);
-            case "disband":   return membershipCommands.handleDisband(player);
+            case "disband":   return membershipCommands.handleDisband(player, args);
             case "invite":
             case "add":       return membershipCommands.handleInvite(player, args);
             case "uninvite":
@@ -185,6 +185,11 @@ public class FactionCommand implements CommandExecutor {
     // Cancel a pending warmup for a player. Called from the listener on move/damage.
     public void cancelWarmup(UUID playerUuid, boolean dueToDamage) {
         territoryCommands.cancelWarmup(playerUuid, dueToDamage);
+    }
+
+    // Cancel a pending /f logout warmup. Called from the listener on move/damage.
+    public void cancelLogoutWarmup(UUID playerUuid, boolean dueToDamage) {
+        territoryCommands.cancelLogoutWarmup(playerUuid, dueToDamage);
     }
 
     // Check if a player is in faction chat mode

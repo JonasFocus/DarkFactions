@@ -70,6 +70,7 @@ public class FactionAdminCommands extends AbstractFactionSubcommand {
         ClaimResult result = plugin.getClaimManager().claimChunk(chunk, claimFor.getFactionId());
         if (result.isSuccess()) {
             player.sendMessage(msg.success("Chunk claimed for " + claimFor.getName() + "!"));
+            logAdmin(player.getName() + " force-claimed chunk for " + claimFor.getName());
         } else {
             player.sendMessage(msg.error("Could not claim chunk: " + result.getMessage()));
         }
@@ -81,9 +82,11 @@ public class FactionAdminCommands extends AbstractFactionSubcommand {
         if (bypassing) {
             plugin.getClaimManager().getBypassPlayers().remove(player.getUniqueId());
             player.sendMessage(msg.info("Bypass mode disabled."));
+            logAdmin(player.getName() + " disabled bypass mode");
         } else {
             plugin.getClaimManager().getBypassPlayers().add(player.getUniqueId());
             player.sendMessage(msg.warning("Bypass mode enabled! You can interact anywhere."));
+            logAdmin(player.getName() + " enabled bypass mode");
         }
         return true;
     }
@@ -116,8 +119,32 @@ public class FactionAdminCommands extends AbstractFactionSubcommand {
     }
 
     boolean handleConsoleTop(CommandSender sender, String[] args) {
-        String sortBy = args.length >= 2 ? args[1].toLowerCase() : "power";
+        String sortBy = "power";
         int limit = plugin.getConfigManager().getLeaderboardDefaultLimit();
+        int maxLimit = plugin.getConfigManager().getLeaderboardMaxLimit();
+
+        if (args.length >= 2) {
+            if (args[1].matches("\\d+")) {
+                try {
+                    limit = Integer.parseInt(args[1]);
+                } catch (NumberFormatException ignored) {
+                    // keep default
+                }
+            } else {
+                sortBy = args[1].toLowerCase();
+            }
+        }
+        if (args.length >= 3) {
+            try {
+                limit = Integer.parseInt(args[2]);
+            } catch (NumberFormatException e) {
+                sender.sendMessage(msg.error("Invalid limit!"));
+                return true;
+            }
+        }
+        if (limit < 1) limit = 1;
+        if (limit > maxLimit) limit = maxLimit;
+
         List<Faction> sorted;
 
         switch (sortBy) {
@@ -191,6 +218,7 @@ public class FactionAdminCommands extends AbstractFactionSubcommand {
             setter.accept(faction, amount);
             plugin.getFactionManager().markDirty();
             sender.sendMessage(msg.success("Set " + faction.getName() + "'s " + label + " to " + amount));
+            logAdmin(sender.getName() + " set " + faction.getName() + "'s " + label + " to " + amount);
         } catch (NumberFormatException e) {
             sender.sendMessage(msg.error("Invalid number!"));
         }
@@ -205,7 +233,14 @@ public class FactionAdminCommands extends AbstractFactionSubcommand {
         // deleteFaction() already removes this faction's claims internally.
         plugin.getFactionManager().deleteFaction(removeFaction.getFactionId());
         sender.sendMessage(msg.success("Force removed faction: " + removedName));
+        logAdmin(sender.getName() + " force-removed faction " + removedName);
         return true;
+    }
+
+    private void logAdmin(String action) {
+        if (plugin.getConfigManager().isLogAdminActions()) {
+            plugin.getLogger().info("[Admin] " + action);
+        }
     }
 
     private boolean handleListCommand(CommandSender sender) {

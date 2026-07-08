@@ -25,7 +25,7 @@ public class ConfigManager {
     }
 
     // Re-reads config.yml from disk and refreshes our reference.
-    // Called when /f admin reload is used.
+    // Called when /f reload is used.
     public void reload() {
         plugin.reloadConfig();
         this.config = plugin.getConfig();
@@ -55,9 +55,6 @@ public class ConfigManager {
     // ==========================================
     // GENERAL
     // ==========================================
-    public String getLanguage() { return config.getString("general.language", "en"); }
-    public boolean isCheckUpdates() { return config.getBoolean("general.check-updates", true); }
-    public boolean isMetricsEnabled() { return config.getBoolean("general.metrics-enabled", false); }
     public int getAutoSaveInterval() { return config.getInt("general.auto-save-interval-seconds", 300); }
 
     // ==========================================
@@ -76,15 +73,23 @@ public class ConfigManager {
     public double getMinPlayerPower() { return config.getDouble("power.min-player-power", 0.0); }
     public boolean isShowPowerChanges() { return config.getBoolean("power.show-power-changes", true); }
     public double getPowerGainOnMobKill() { return config.getDouble("power.gain-on-mob-kill", 0.0); }
+    public double getPowerGainOnRaidWin() { return config.getDouble("power.gain-on-raid-win", 5.0); }
+    public double getPowerPerClaim() { return config.getDouble("power.power-per-claim", 1.0); }
+    public double getRaidablePowerPerMember() { return config.getDouble("power.raidable-power-per-member", 0.5); }
 
     // ==========================================
     // ELIXIR
     // ==========================================
     public double getElixirPerEnemyKill() { return config.getDouble("elixir.per-enemy-kill", 5.0); }
+    public double getElixirPerRaid() { return config.getDouble("elixir.per-raid", 25.0); }
+    public double getElixirRaidStealPercent() { return config.getDouble("elixir.raid-steal-percent", 0.5); }
     public double getElixirDailyBonus() { return config.getDouble("elixir.daily-bonus", 10.0); }
     public boolean isElixirAutoClaimOnJoin() { return config.getBoolean("elixir.auto-claim-on-join", false); }
     public double getElixirPerChunkClaim() { return config.getDouble("elixir.per-chunk-claim", 0.0); }
     public double getElixirPerChunkLost() { return config.getDouble("elixir.per-chunk-lost", 2.0); }
+    public double getElixirCreateFactionCost() { return config.getDouble("elixir.create-faction-cost", 0.0); }
+    public double getElixirRenameCost() { return config.getDouble("elixir.rename-faction-cost", 10.0); }
+    public double getElixirSetTagCost() { return config.getDouble("elixir.set-tag-cost", 5.0); }
     public boolean isElixirTransferEnabled() { return config.getBoolean("elixir.transfer-enabled", false); }
     public double getElixirTransferTaxRate() { return config.getDouble("elixir.transfer-tax-rate", 0.0); }
 
@@ -132,17 +137,7 @@ public class ConfigManager {
     public List<String> getClaimDisabledWorlds() { return config.getStringList("claim.disabled-worlds"); }
     public List<String> getClaimWhitelistWorlds() { return config.getStringList("claim.whitelist-worlds"); }
     public boolean isCanUnclaimEnemy() { return config.getBoolean("claim.can-unclaim-enemy", false); }
-    public int getMaxClaimPerSession() { return config.getInt("claim.max-claim-per-session", 0); }
-    public int getMaxUnclaimPerSession() { return config.getInt("claim.max-unclaim-per-session", 0); }
     public int getClaimBufferChunks() { return config.getInt("claim.claim-buffer-chunks", 0); }
-    public boolean isShowBorderParticles() { return config.getBoolean("claim.show-border-particles", true); }
-    public String getBorderParticleType() { return config.getString("claim.border-particle-type", "REDSTONE"); }
-    public int getBorderOwnColorRed() { return config.getInt("claim.border-own-color.red", 0); }
-    public int getBorderOwnColorGreen() { return config.getInt("claim.border-own-color.green", 255); }
-    public int getBorderOwnColorBlue() { return config.getInt("claim.border-own-color.blue", 0); }
-    public int getBorderEnemyColorRed() { return config.getInt("claim.border-enemy-color.red", 255); }
-    public int getBorderEnemyColorGreen() { return config.getInt("claim.border-enemy-color.green", 0); }
-    public int getBorderEnemyColorBlue() { return config.getInt("claim.border-enemy-color.blue", 0); }
 
     // ==========================================
     // PROTECTION
@@ -226,11 +221,4 @@ public class ConfigManager {
     public boolean isCombatTagPreventFly() { return config.getBoolean("combat.prevent-fly", true); }
     public boolean isCombatTagPreventHome() { return config.getBoolean("combat.prevent-home", true); }
     public int getCombatLogoutWarmup() { return config.getInt("combat.logout-warmup-seconds", 10); }
-
-    // ==========================================
-    // ECONOMY (Vault)
-    // ==========================================
-    public boolean isVaultEnabled() { return config.getBoolean("economy.vault-enabled", false); }
-    public double getVaultElixirToMoneyRate() { return config.getDouble("economy.vault-elixir-to-money-rate", 10.0); }
-    public double getVaultMoneyToElixirRate() { return config.getDouble("economy.vault-money-to-elixir-rate", 12.0); }
 }

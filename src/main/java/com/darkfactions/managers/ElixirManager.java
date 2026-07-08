@@ -38,6 +38,8 @@ public class ElixirManager {
 
     // Cached config values
     private double perEnemyKill;
+    private double perRaid;
+    private double raidStealPercent;
     private double dailyBonus;
     private boolean autoClaimOnJoin;
     private boolean transferEnabled;
@@ -59,6 +61,8 @@ public class ElixirManager {
     public void reloadConfig() {
         ConfigManager cfg = plugin.getConfigManager();
         this.perEnemyKill = cfg.getElixirPerEnemyKill();
+        this.perRaid = cfg.getElixirPerRaid();
+        this.raidStealPercent = cfg.getElixirRaidStealPercent();
         this.dailyBonus = cfg.getElixirDailyBonus();
         this.autoClaimOnJoin = cfg.isElixirAutoClaimOnJoin();
         this.transferEnabled = cfg.isElixirTransferEnabled();
@@ -98,6 +102,19 @@ public class ElixirManager {
         addFactionElixir(killerFactionId, perEnemyKill);
     }
 
+    // Raid: flat reward plus optional steal from the victim faction
+    public void onSuccessfulRaid(UUID raiderFactionId, UUID victimFactionId) {
+        addFactionElixir(raiderFactionId, perRaid);
+
+        Faction victimFaction = plugin.getFactionManager().getFaction(victimFactionId);
+        if (victimFaction != null) {
+            // Steal a percentage of the victim's actual balance, capped at what they have
+            // so removeElixir can never fail.
+            double stolenAmount = Math.min(victimFaction.getElixir() * raidStealPercent, victimFaction.getElixir());
+            victimFaction.removeElixir(stolenAmount);
+        }
+    }
+
     // Daily login bonus — at most once per calendar day (server time zone)
     public void onPlayerLogin(UUID playerUuid) {
         ZoneId zone = ZoneId.systemDefault();
@@ -120,6 +137,34 @@ public class ElixirManager {
             pendingElixir.merge(playerUuid, dailyBonus, Double::sum);
             dirtyPendingElixir.markDirty(playerUuid);
         }
+    }
+
+    public double getPendingElixir(UUID playerUuid) {
+        return pendingElixir.getOrDefault(playerUuid, 0.0);
+    }
+
+    /** Add to a player's pending (unclaimed) elixir balance. */
+    public void addPendingElixir(UUID playerUuid, double amount) {
+        if (amount <= 0) return;
+        pendingElixir.merge(playerUuid, amount, Double::sum);
+        dirtyPendingElixir.markDirty(playerUuid);
+    }
+
+    /** Deduct from a player's pending (unclaimed) elixir balance. */
+    public boolean removePendingElixir(UUID playerUuid, double amount) {
+        if (amount <= 0) return true;
+        double current = pendingElixir.getOrDefault(playerUuid, 0.0);
+        if (current < amount) return false;
+        double remaining = current - amount;
+        if (remaining <= 0) {
+            pendingElixir.remove(playerUuid);
+            pendingElixirDeletions.add(playerUuid);
+            dirtyPendingElixir.clear(playerUuid);
+        } else {
+            pendingElixir.put(playerUuid, remaining);
+            dirtyPendingElixir.markDirty(playerUuid);
+        }
+        return true;
     }
 
     // Claim pending elixir

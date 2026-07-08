@@ -31,21 +31,19 @@ public class FactionManager {
     private final Map<UUID, Faction> factions;
     private final Map<UUID, UUID> playerFactionMap;
     private final Map<UUID, List<UUID>> pendingInvites;
+    // Key: target faction receiving the request; Value: requesting faction IDs
+    private final Map<UUID, Set<UUID>> pendingAllyRequests;
     private final Map<String, UUID> factionsByName;
     private final Set<UUID> pendingDeletions;
-
-    // Alliances require mutual consent. Keyed by the faction that received the
-    // request, valued by the set of factions that have asked to ally with it.
-    private final Map<UUID, Set<UUID>> pendingAllyRequests;
 
     public FactionManager(DarkFactions plugin) {
         this.plugin = plugin;
         this.factions = new ConcurrentHashMap<>();
         this.playerFactionMap = new ConcurrentHashMap<>();
         this.pendingInvites = new ConcurrentHashMap<>();
+        this.pendingAllyRequests = new ConcurrentHashMap<>();
         this.factionsByName = new ConcurrentHashMap<>();
         this.pendingDeletions = ConcurrentHashMap.newKeySet();
-        this.pendingAllyRequests = new ConcurrentHashMap<>();
     }
 
     // Kept for the handful of admin call sites that don't hold a direct Faction
@@ -75,6 +73,8 @@ public class FactionManager {
         faction.setOpen(cfg.isDefaultOpen());
         faction.setPvpEnabled(cfg.isDefaultPvp());
         faction.setTntEnabled(cfg.isDefaultTnt());
+        faction.setBonusPower(cfg.getFactionStartingPower());
+        faction.setMaxPower(cfg.getFactionStartingMaxPower());
 
         factions.put(faction.getFactionId(), faction);
         factionsByName.put(nameKey(name), faction.getFactionId());
@@ -96,8 +96,17 @@ public class FactionManager {
 
         pendingInvites.values().forEach(list -> list.remove(factionId));
         pendingInvites.values().removeIf(List::isEmpty);
-        pendingAllyRequests.remove(factionId);
-        pendingAllyRequests.values().forEach(set -> set.remove(factionId));
+        clearAllyRequestsInvolving(factionId);
+
+        // Scrub stale ally/enemy UUIDs from every surviving faction before removal.
+        for (Faction other : factions.values()) {
+            if (other.getFactionId().equals(factionId)) {
+                continue;
+            }
+            other.removeAlly(factionId);
+            other.removeEnemy(factionId);
+        }
+
         factions.remove(factionId);
         factionsByName.remove(nameKey(faction.getName()));
         pendingDeletions.add(factionId);
@@ -238,31 +247,64 @@ public class FactionManager {
     }
 
     // ==========================================
-    // Alliance Requests
-    // Alliances require mutual consent: the first /f ally records a request,
-    // the target must also run /f ally back before the alliance is formed.
+    // Ally Request System
+    // /f ally <name> sends a request; target uses /f ally accept|deny <name>
     // ==========================================
 
     /**
-     * Records an alliance request from {@code requesterFactionId} to {@code targetFactionId}.
-     *
-     * @return true if the target had already requested the requester, meaning this
-     *         call completes mutual consent and the alliance should be formed now;
-     *         false if only the request was recorded and it's still pending.
+     * Record a pending ally request from {@code fromFactionId} to {@code toFactionId}.
+     * @return false if a request from that faction is already pending
      */
-    public boolean requestAlliance(UUID requesterFactionId, UUID targetFactionId) {
-        Set<UUID> requestsToRequester = pendingAllyRequests.get(requesterFactionId);
-        if (requestsToRequester != null && requestsToRequester.remove(targetFactionId)) {
-            return true;
-        }
-        pendingAllyRequests.computeIfAbsent(targetFactionId, k -> ConcurrentHashMap.newKeySet())
-                .add(requesterFactionId);
-        return false;
+    public boolean sendAllyRequest(UUID fromFactionId, UUID toFactionId) {
+        Set<UUID> requests = pendingAllyRequests.computeIfAbsent(toFactionId, k -> ConcurrentHashMap.newKeySet());
+        return requests.add(fromFactionId);
     }
 
-    public boolean hasPendingAllyRequest(UUID targetFactionId, UUID requesterFactionId) {
-        Set<UUID> requests = pendingAllyRequests.get(targetFactionId);
-        return requests != null && requests.contains(requesterFactionId);
+    public boolean hasPendingAllyRequest(UUID fromFactionId, UUID toFactionId) {
+        Set<UUID> requests = pendingAllyRequests.get(toFactionId);
+        return requests != null && requests.contains(fromFactionId);
+    }
+
+    /**
+     * Accept a pending ally request: clear enemies, form mutual ally, clear the request.
+     * @return false if no pending request exists
+     */
+    public boolean acceptAllyRequest(UUID acceptingFactionId, UUID requestingFactionId) {
+        Faction accepting = factions.get(acceptingFactionId);
+        Faction requesting = factions.get(requestingFactionId);
+        if (accepting == null || requesting == null) {
+            return false;
+        }
+
+        Set<UUID> requests = pendingAllyRequests.get(acceptingFactionId);
+        if (requests == null || !requests.remove(requestingFactionId)) {
+            return false;
+        }
+        if (requests.isEmpty()) {
+            pendingAllyRequests.remove(acceptingFactionId);
+        }
+
+        accepting.removeEnemy(requestingFactionId);
+        requesting.removeEnemy(acceptingFactionId);
+        accepting.addAlly(requestingFactionId);
+        requesting.addAlly(acceptingFactionId);
+        return true;
+    }
+
+    public boolean denyAllyRequest(UUID denyingFactionId, UUID requestingFactionId) {
+        Set<UUID> requests = pendingAllyRequests.get(denyingFactionId);
+        if (requests == null) return false;
+        boolean removed = requests.remove(requestingFactionId);
+        if (requests.isEmpty()) {
+            pendingAllyRequests.remove(denyingFactionId);
+        }
+        return removed;
+    }
+
+    private void clearAllyRequestsInvolving(UUID factionId) {
+        pendingAllyRequests.remove(factionId);
+        pendingAllyRequests.values().forEach(set -> set.remove(factionId));
+        pendingAllyRequests.values().removeIf(Set::isEmpty);
     }
 
     // Drops any pending request between the two factions in either direction, so an
@@ -331,15 +373,28 @@ public class FactionManager {
 
     public void loadFromStore(DataStore store) {
         for (Faction f : store.loadAllFactions()) {
+            String originalName = f.getName();
+            String key = nameKey(originalName);
+            if (factionsByName.containsKey(key)) {
+                // Duplicate case-insensitive name: rename in-memory so both load.
+                String suffix = f.getFactionId().toString().substring(0, 8);
+                String renamed = originalName + "-" + suffix;
+                plugin.getLogger().severe("Duplicate faction name '" + originalName
+                        + "' on load; renaming id " + f.getFactionId() + " to '" + renamed + "'");
+                f.setName(renamed);
+                key = nameKey(renamed);
+                // Keep dirty so the renamed name is persisted on the next save.
+            } else {
+                // Loading hydrates the faction through its normal setters, which
+                // mark it dirty; clear that so a freshly-loaded faction with no
+                // real changes isn't rewritten on the very next save cycle.
+                f.clearDirty();
+            }
             factions.put(f.getFactionId(), f);
-            factionsByName.put(nameKey(f.getName()), f.getFactionId());
+            factionsByName.put(key, f.getFactionId());
             for (UUID muid : f.getMembers()) {
                 playerFactionMap.put(muid, f.getFactionId());
             }
-            // Loading hydrates the faction through its normal setters, which
-            // mark it dirty; clear that so a freshly-loaded faction with no
-            // real changes isn't rewritten on the very next save cycle.
-            f.clearDirty();
             plugin.getLogger().info("Loaded faction: " + f.getName());
         }
         plugin.getLogger().info("Loaded " + factions.size() + " factions!");

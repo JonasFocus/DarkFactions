@@ -43,9 +43,10 @@ public class TerritoryMovementHandler {
             return;
         }
 
-        // Cancel home warmup on move
+        // Cancel home / logout warmups on move
         if (event.getFrom().getBlockX() != event.getTo().getBlockX() || event.getFrom().getBlockZ() != event.getTo().getBlockZ()) {
             plugin.getFactionCommand().cancelWarmup(player.getUniqueId(), false);
+            plugin.getFactionCommand().cancelLogoutWarmup(player.getUniqueId(), false);
         }
 
         Chunk toChunk = event.getTo().getChunk();
@@ -123,6 +124,10 @@ public class TerritoryMovementHandler {
                 ClaimResult result = plugin.getClaimManager().claimChunk(toChunk, playerFaction.getFactionId());
                 if (result.isSuccess()) {
                     player.sendMessage(plugin.getMessageUtils().success("Auto-claimed this chunk!"));
+                } else if (result == ClaimResult.INSUFFICIENT_POWER
+                        || result == ClaimResult.TOO_MANY
+                        || result == ClaimResult.NO_ELIXIR) {
+                    player.sendMessage(plugin.getMessageUtils().error(result.getMessage()));
                 }
             }
         }

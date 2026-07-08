@@ -30,7 +30,7 @@ public class PowerManager {
     private final DarkFactions plugin;
     private final Map<UUID, FactionPlayer> playerDataMap;
 
-    // Cached config values (reloaded on /f admin reload)
+    // Cached config values (reloaded on /f reload)
     private double defaultPlayerPower;
     private double maxPlayerPower;
     private int powerRegenInterval;
@@ -45,7 +45,7 @@ public class PowerManager {
     private double powerGainOnMobKill;
 
     // Per-member power threshold below which a faction becomes raidable.
-    private static final double RAIDABLE_POWER_PER_MEMBER = 0.5;
+    private double raidablePowerPerMember;
 
     // Task ID for the power regen scheduler
     private int regenTaskId = -1;
@@ -73,6 +73,7 @@ public class PowerManager {
         this.offlineDecayMaxHours = cfg.getOfflineDecayMaxHours();
         this.minPlayerPower = cfg.getMinPlayerPower();
         this.powerGainOnMobKill = cfg.getPowerGainOnMobKill();
+        this.raidablePowerPerMember = cfg.getRaidablePowerPerMember();
 
         // Restart the regen task with new interval
         startRegenTask();
@@ -171,16 +172,42 @@ public class PowerManager {
     /**
      * One-time migration from legacy faction-level {@code power}/{@code max_power} columns.
      * Converts stored totals into bonus-only values by subtracting current member sums.
+     *
+     * <p>Idempotent: only adjusts when {@code bonus >= memberSum} (legacy pattern where
+     * the column still holds the old total). After the first successful run, bonus is
+     * typically smaller than memberSum, so a second run is a no-op.
      */
     public void migrateLegacyBonusPower() {
+        int migrated = 0;
         for (Faction faction : plugin.getFactionManager().getAllFactions()) {
             UUID factionId = faction.getFactionId();
             double memberPower = getFactionPower(factionId);
             double memberMax = getFactionMemberMaxPower(factionId);
-            faction.setBonusPower(Math.max(0.0, faction.getBonusPower() - memberPower));
-            faction.setMaxPower(Math.max(0.0, faction.getMaxPower() - memberMax));
+            double bonus = faction.getBonusPower();
+            double max = faction.getMaxPower();
+            boolean changed = false;
+            if (bonus >= memberPower && memberPower > 0) {
+                faction.setBonusPower(bonus - memberPower);
+                changed = true;
+            }
+            if (max >= memberMax && memberMax > 0) {
+                faction.setMaxPower(max - memberMax);
+                changed = true;
+            }
+            if (changed) {
+                migrated++;
+            }
         }
-        plugin.getLogger().info("Migrated legacy faction power to per-player + bonus model.");
+        plugin.getLogger().info("Migrated legacy faction power to per-player + bonus model"
+                + " (" + migrated + " factions adjusted).");
+    }
+
+    /** Cancel the power regen scheduler. Called from plugin disable before persist. */
+    public void shutdown() {
+        if (regenTaskId != -1) {
+            plugin.getServer().getScheduler().cancelTask(regenTaskId);
+            regenTaskId = -1;
+        }
     }
 
     // Called when a player dies from PVP
@@ -210,6 +237,25 @@ public class PowerManager {
         if (powerGainOnMobKill <= 0) return;
         FactionPlayer data = getPlayerData(playerUuid);
         data.setPower(PowerRules.applyGain(data.getPower(), powerGainOnMobKill, maxPlayerPower));
+    }
+
+    // Called when a player's faction wins a raid (enemy unclaim of raidable land)
+    public void onRaidWin(UUID factionId) {
+        double raidPower = plugin.getConfigManager().getPowerGainOnRaidWin();
+        if (raidPower <= 0) return;
+        Faction faction = plugin.getFactionManager().getFaction(factionId);
+        if (faction == null) return;
+        faction.addBonusPower(raidPower);
+
+        if (plugin.getConfigManager().isShowPowerChanges()) {
+            String message = "Raid win! +" + String.format("%.1f", raidPower) + " faction power.";
+            for (UUID memberUuid : faction.getMembers()) {
+                Player member = plugin.getServer().getPlayer(memberUuid);
+                if (member != null && member.isOnline()) {
+                    member.sendMessage(plugin.getMessageUtils().success(message));
+                }
+            }
+        }
     }
 
     // Regenerate power for ALL players
@@ -259,7 +305,7 @@ public class PowerManager {
         double totalPower = getEffectiveFactionPower(factionId);
         int memberCount = faction.getMemberCount();
 
-        return PowerRules.isRaidable(totalPower, memberCount, RAIDABLE_POWER_PER_MEMBER);
+        return PowerRules.isRaidable(totalPower, memberCount, raidablePowerPerMember);
     }
 
     // ==========================================

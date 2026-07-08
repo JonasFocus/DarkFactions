@@ -24,7 +24,9 @@ public class FactionInfoCommands extends AbstractFactionSubcommand {
     void sendHelp(Player player) {
         player.sendMessage(msg.header("DarkFactions Commands"));
         player.sendMessage(msg.help("/f create <name>", "Create a new faction"));
+        player.sendMessage(msg.help("/f disband [name]", "Disband your faction"));
         player.sendMessage(msg.help("/f invite <player>", "Invite a player to your faction"));
+        player.sendMessage(msg.help("/f uninvite <player>", "Revoke a pending invite"));
         player.sendMessage(msg.help("/f accept <faction>", "Accept a faction invite"));
         player.sendMessage(msg.help("/f deny <faction>", "Deny a faction invite"));
         player.sendMessage(msg.help("/f invites", "List your pending invites"));
@@ -44,7 +46,7 @@ public class FactionInfoCommands extends AbstractFactionSubcommand {
         player.sendMessage(msg.help("/f who [player]", "Show faction info"));
         player.sendMessage(msg.help("/f list", "List all factions"));
         player.sendMessage(msg.help("/f show <faction>", "Show faction details"));
-        player.sendMessage(msg.help("/f top [power|elixir]", "Show faction leaderboard"));
+        player.sendMessage(msg.help("/f top [power|elixir|members|land] [limit]", "Show faction leaderboard"));
         player.sendMessage(msg.help("/f power", "Show your faction's power"));
         player.sendMessage(msg.help("/f elixir", "Show your faction's elixir"));
         player.sendMessage(msg.help("/f bal [faction]", "Show a faction's elixir balance"));
@@ -59,6 +61,7 @@ public class FactionInfoCommands extends AbstractFactionSubcommand {
         player.sendMessage(msg.help("/f chat", "Toggle faction-only chat"));
         player.sendMessage(msg.help("/f allychat", "Toggle ally chat"));
         player.sendMessage(msg.help("/f ally <faction>", "Send ally request"));
+        player.sendMessage(msg.help("/f ally accept|deny <faction>", "Respond to ally request"));
         player.sendMessage(msg.help("/f enemy <faction>", "Declare enemy"));
         player.sendMessage(msg.help("/f neutral <faction>", "Set neutral"));
         player.sendMessage(msg.help("/f fly", "Toggle flight in own territory"));
@@ -103,7 +106,11 @@ public class FactionInfoCommands extends AbstractFactionSubcommand {
         }
 
         if (faction == null) {
-            player.sendMessage(msg.error("That player is not in a faction!"));
+            if (args.length < 2) {
+                player.sendMessage(msg.error("You are not in a faction!"));
+            } else {
+                player.sendMessage(msg.error("That player is not in a faction!"));
+            }
             return true;
         }
 
@@ -213,11 +220,32 @@ public class FactionInfoCommands extends AbstractFactionSubcommand {
     boolean handleTop(Player player, String[] args) {
 
         String sortBy = "power"; // Default sort by power
-        if (args.length >= 2) {
-            sortBy = args[1].toLowerCase();
-        }
-
         int limit = plugin.getConfigManager().getLeaderboardDefaultLimit();
+        int maxLimit = plugin.getConfigManager().getLeaderboardMaxLimit();
+
+        if (args.length >= 2) {
+            // args[1] may be a sort key or a numeric limit
+            if (args[1].matches("\\d+")) {
+                try {
+                    limit = Integer.parseInt(args[1]);
+                } catch (NumberFormatException ignored) {
+                    // keep default
+                }
+            } else {
+                sortBy = args[1].toLowerCase();
+            }
+        }
+        if (args.length >= 3) {
+            try {
+                limit = Integer.parseInt(args[2]);
+            } catch (NumberFormatException e) {
+                player.sendMessage(msg.error("Invalid limit!"));
+                return true;
+            }
+        }
+        if (limit < 1) limit = 1;
+        if (limit > maxLimit) limit = maxLimit;
+
         List<Faction> sorted;
 
         switch (sortBy) {

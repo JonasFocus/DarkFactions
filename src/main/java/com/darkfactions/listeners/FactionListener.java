@@ -146,6 +146,11 @@ public class FactionListener implements Listener {
             return null; // Admin bypass
         }
 
+        if (plugin.getConfigManager().isAdminBypassProtection()
+                && player.hasPermission("darkfactions.admin")) {
+            return null; // Config-gated admin permission bypass
+        }
+
         Faction ownerFaction = plugin.getFactionManager().getFaction(ownerId);
         if (ownerFaction == null) {
             return null;
@@ -176,26 +181,32 @@ public class FactionListener implements Listener {
         return deny ? ownerFaction : null;
     }
 
-    // Check if a block type should be protected
+    // Check if a block type should be protected. Uses material.name() string
+    // checks (suffix heuristics + an exact-name set) so older/newer Paper
+    // versions don't break compile when Material enum constants differ.
     private boolean isProtectedBlock(Material material) {
-        return switch (material.name()) {
+        String name = material.name();
+        if (name.endsWith("_DOOR")
+                || name.endsWith("_TRAPDOOR")
+                || name.endsWith("_FENCE_GATE")
+                || name.endsWith("_BUTTON")
+                || name.endsWith("_SHULKER_BOX")
+                || name.equals("SHULKER_BOX")) {
+            return true;
+        }
+        return switch (name) {
             case "CHEST", "TRAPPED_CHEST", "ENDER_CHEST",
                  "FURNACE", "BLAST_FURNACE", "SMOKER",
                  "BREWING_STAND", "ENCHANTING_TABLE",
-                 "ANVIL", "GRINDSTONE", "STONECUTTER",
+                 "ANVIL", "CHIPPED_ANVIL", "DAMAGED_ANVIL",
+                 "GRINDSTONE", "STONECUTTER",
                  "CRAFTING_TABLE", "BARREL",
-                 "SHULKER_BOX",
-                 "OAK_DOOR", "SPRUCE_DOOR", "BIRCH_DOOR", "JUNGLE_DOOR",
-                 "ACACIA_DOOR", "DARK_OAK_DOOR", "IRON_DOOR",
-                 "OAK_FENCE_GATE", "SPRUCE_FENCE_GATE", "BIRCH_FENCE_GATE",
-                 "JUNGLE_FENCE_GATE", "ACACIA_FENCE_GATE", "DARK_OAK_FENCE_GATE",
-                 "LEVER", "STONE_BUTTON", "OAK_BUTTON", "SPRUCE_BUTTON",
-                 "BIRCH_BUTTON", "JUNGLE_BUTTON", "ACACIA_BUTTON", "DARK_OAK_BUTTON",
-                 "REPEATER", "COMPARATOR", "DAYLIGHT_DETECTOR",
                  "HOPPER", "DROPPER", "DISPENSER",
                  "BEACON", "RESPAWN_ANCHOR",
                  "LOOM", "CARTOGRAPHY_TABLE", "FLETCHING_TABLE",
-                 "SMITHING_TABLE", "LECTERN", "COMPOSTER" -> true;
+                 "SMITHING_TABLE", "LECTERN", "COMPOSTER",
+                 "REPEATER", "COMPARATOR", "DAYLIGHT_DETECTOR",
+                 "LEVER", "CRAFTER" -> true;
             default -> false;
         };
     }
@@ -276,8 +287,9 @@ public class FactionListener implements Listener {
         plugin.getCombatManager().tag(victim.getUniqueId());
         plugin.getCombatManager().tag(attacker.getUniqueId());
 
-        // Cancel any pending home teleport for the victim
+        // Cancel any pending home teleport / logout warmup for the victim
         plugin.getFactionCommand().cancelWarmup(victim.getUniqueId(), true);
+        plugin.getFactionCommand().cancelLogoutWarmup(victim.getUniqueId(), true);
     }
 
     // Classifies the victim's chunk relative to their own faction: unclaimed,
@@ -532,9 +544,10 @@ public class FactionListener implements Listener {
 
         plugin.getPowerManager().updateLogoutTime(playerUuid);
 
-        // Cancel any pending home-teleport warmup so it doesn't fire against
+        // Cancel any pending home-teleport / logout warmup so it doesn't fire against
         // a disconnected player.
         plugin.getFactionCommand().cancelWarmup(playerUuid, false);
+        plugin.getFactionCommand().cancelLogoutWarmup(playerUuid, false);
 
         // Combat tag check — punish combat loggers
         if (plugin.getCombatManager().handleQuit(playerUuid)) {
@@ -566,21 +579,29 @@ public class FactionListener implements Listener {
         // Environmental / mob death: apply the PvE power loss (a no-op when
         // power.loss-on-pve-death is 0) instead of the heavier PvP penalty.
         if (killer == null) {
+            double before = plugin.getPowerManager().getPlayerPower(victimUuid);
             plugin.getPowerManager().onPlayerPveDeath(victimUuid);
+            notifyPowerChange(victim, before, plugin.getPowerManager().getPlayerPower(victimUuid), "death");
             return;
         }
 
         // PvP death: victim takes the PvP power loss, killer gains power.
         // Ignore self-inflicted kills (e.g. damage potions, explosions)
         if (killer.equals(victim)) {
+            double before = plugin.getPowerManager().getPlayerPower(victimUuid);
             plugin.getPowerManager().onPlayerDeath(victimUuid);
+            notifyPowerChange(victim, before, plugin.getPowerManager().getPlayerPower(victimUuid), "death");
             plugin.getCombatManager().clear(victimUuid);
             return;
         }
+        double victimBefore = plugin.getPowerManager().getPlayerPower(victimUuid);
         plugin.getPowerManager().onPlayerDeath(victimUuid);
+        notifyPowerChange(victim, victimBefore, plugin.getPowerManager().getPlayerPower(victimUuid), "death");
 
         UUID killerUuid = killer.getUniqueId();
+        double killerBefore = plugin.getPowerManager().getPlayerPower(killerUuid);
         plugin.getPowerManager().onPlayerKill(killerUuid);
+        notifyPowerChange(killer, killerBefore, plugin.getPowerManager().getPlayerPower(killerUuid), "kill");
 
         // Clear combat tags
         plugin.getCombatManager().clear(victimUuid);
@@ -597,6 +618,17 @@ public class FactionListener implements Listener {
                     "Enemy kill! Elixir earned for " + killerFaction.getName()
             ));
         }
+    }
+
+    private void notifyPowerChange(Player player, double before, double after, String reason) {
+        if (!plugin.getConfigManager().isShowPowerChanges()) return;
+        if (player == null || !player.isOnline()) return;
+        double delta = after - before;
+        if (Math.abs(delta) < 0.001) return;
+        String sign = delta > 0 ? "+" : "";
+        player.sendMessage(plugin.getMessageUtils().info(
+                "Power " + reason + ": " + sign + String.format("%.1f", delta)
+                        + " (now " + String.format("%.1f", after) + ")"));
     }
 
     // ==========================================

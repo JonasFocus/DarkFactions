@@ -10,17 +10,15 @@ import org.junit.jupiter.api.Test;
 class FactionManagerTest {
 
     @Test
-    void allianceRequiresMutualConsent() {
+    void allyRequestIsPendingUntilAccepted() {
         FactionManager manager = new FactionManager(null);
         UUID a = UUID.randomUUID();
         UUID b = UUID.randomUUID();
 
-        assertFalse(manager.requestAlliance(a, b), "first request is only pending, not yet mutual");
-        assertTrue(manager.hasPendingAllyRequest(b, a), "b should see a pending request from a");
-        assertFalse(manager.hasPendingAllyRequest(a, b), "a has not been asked by b yet");
-
-        assertTrue(manager.requestAlliance(b, a), "b reciprocating completes mutual consent");
-        assertFalse(manager.hasPendingAllyRequest(b, a), "consumed request should be cleared");
+        assertTrue(manager.sendAllyRequest(a, b), "first request should be recorded");
+        assertTrue(manager.hasPendingAllyRequest(a, b), "b should see a pending request from a");
+        assertFalse(manager.hasPendingAllyRequest(b, a), "a has not been asked by b yet");
+        assertFalse(manager.acceptAllyRequest(b, a), "accept without loaded factions cannot form the ally");
     }
 
     @Test
@@ -29,9 +27,21 @@ class FactionManagerTest {
         UUID a = UUID.randomUUID();
         UUID b = UUID.randomUUID();
 
-        assertFalse(manager.requestAlliance(a, b));
-        assertFalse(manager.requestAlliance(a, b), "re-requesting is not self-confirmation");
-        assertTrue(manager.hasPendingAllyRequest(b, a));
+        assertTrue(manager.sendAllyRequest(a, b));
+        assertFalse(manager.sendAllyRequest(a, b), "re-requesting the same pair is rejected");
+        assertTrue(manager.hasPendingAllyRequest(a, b));
+    }
+
+    @Test
+    void denyClearsPendingRequest() {
+        FactionManager manager = new FactionManager(null);
+        UUID a = UUID.randomUUID();
+        UUID b = UUID.randomUUID();
+
+        assertTrue(manager.sendAllyRequest(a, b));
+        assertTrue(manager.denyAllyRequest(b, a));
+        assertFalse(manager.hasPendingAllyRequest(a, b));
+        assertFalse(manager.denyAllyRequest(b, a), "second deny finds nothing");
     }
 
     @Test
@@ -40,11 +50,11 @@ class FactionManagerTest {
         UUID a = UUID.randomUUID();
         UUID b = UUID.randomUUID();
 
-        manager.requestAlliance(a, b);
+        manager.sendAllyRequest(a, b);
         manager.clearAllianceRequests(a, b);
-        assertFalse(manager.hasPendingAllyRequest(b, a), "cleared request must be gone");
+        assertFalse(manager.hasPendingAllyRequest(a, b), "cleared request must be gone");
 
-        assertFalse(manager.requestAlliance(b, a), "no leftover request should auto-complete the alliance");
-        assertTrue(manager.hasPendingAllyRequest(a, b), "the new request from b to a is recorded on its own");
+        assertTrue(manager.sendAllyRequest(b, a), "a fresh request from b to a is recorded on its own");
+        assertTrue(manager.hasPendingAllyRequest(b, a));
     }
 }

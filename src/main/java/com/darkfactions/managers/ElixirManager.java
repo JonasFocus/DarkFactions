@@ -38,9 +38,6 @@ public class ElixirManager {
 
     // Cached config values
     private double perEnemyKill;
-    private double perAnyKill;
-    private double perRaid;
-    private double raidStealPercent;
     private double dailyBonus;
     private boolean autoClaimOnJoin;
     private boolean transferEnabled;
@@ -62,9 +59,6 @@ public class ElixirManager {
     public void reloadConfig() {
         ConfigManager cfg = plugin.getConfigManager();
         this.perEnemyKill = cfg.getElixirPerEnemyKill();
-        this.perAnyKill = cfg.getElixirPerAnyKill();
-        this.perRaid = cfg.getElixirPerRaid();
-        this.raidStealPercent = cfg.getElixirRaidStealPercent();
         this.dailyBonus = cfg.getElixirDailyBonus();
         this.autoClaimOnJoin = cfg.isElixirAutoClaimOnJoin();
         this.transferEnabled = cfg.isElixirTransferEnabled();
@@ -102,24 +96,6 @@ public class ElixirManager {
     // Enemy kill
     public void onEnemyKill(UUID killerFactionId) {
         addFactionElixir(killerFactionId, perEnemyKill);
-    }
-
-    // Any player kill
-    public void onAnyKill(UUID killerFactionId) {
-        addFactionElixir(killerFactionId, perAnyKill);
-    }
-
-    // Raid
-    public void onSuccessfulRaid(UUID raiderFactionId, UUID victimFactionId) {
-        addFactionElixir(raiderFactionId, perRaid);
-
-        Faction victimFaction = plugin.getFactionManager().getFaction(victimFactionId);
-        if (victimFaction != null) {
-            // Steal a percentage of the victim's actual balance, capped at what they have
-            // so removeElixir can never fail.
-            double stolenAmount = Math.min(victimFaction.getElixir() * raidStealPercent, victimFaction.getElixir());
-            victimFaction.removeElixir(stolenAmount);
-        }
     }
 
     // Daily login bonus — at most once per calendar day (server time zone)

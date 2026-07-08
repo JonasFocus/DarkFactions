@@ -76,23 +76,15 @@ public class ConfigManager {
     public double getMinPlayerPower() { return config.getDouble("power.min-player-power", 0.0); }
     public boolean isShowPowerChanges() { return config.getBoolean("power.show-power-changes", true); }
     public double getPowerGainOnMobKill() { return config.getDouble("power.gain-on-mob-kill", 0.0); }
-    public double getPowerGainOnRaidWin() { return config.getDouble("power.gain-on-raid-win", 5.0); }
 
     // ==========================================
     // ELIXIR
     // ==========================================
     public double getElixirPerEnemyKill() { return config.getDouble("elixir.per-enemy-kill", 5.0); }
-    public double getElixirPerAnyKill() { return config.getDouble("elixir.per-any-kill", 1.0); }
-    public double getElixirPerRaid() { return config.getDouble("elixir.per-raid", 25.0); }
-    public double getElixirRaidStealPercent() { return config.getDouble("elixir.raid-steal-percent", 0.5); }
     public double getElixirDailyBonus() { return config.getDouble("elixir.daily-bonus", 10.0); }
     public boolean isElixirAutoClaimOnJoin() { return config.getBoolean("elixir.auto-claim-on-join", false); }
     public double getElixirPerChunkClaim() { return config.getDouble("elixir.per-chunk-claim", 0.0); }
     public double getElixirPerChunkLost() { return config.getDouble("elixir.per-chunk-lost", 2.0); }
-    public double getElixirPerPlaytimeHour() { return config.getDouble("elixir.per-playtime-hour", 2.0); }
-    public double getElixirCreateFactionCost() { return config.getDouble("elixir.create-faction-cost", 0.0); }
-    public double getElixirRenameCost() { return config.getDouble("elixir.rename-faction-cost", 10.0); }
-    public double getElixirSetTagCost() { return config.getDouble("elixir.set-tag-cost", 5.0); }
     public boolean isElixirTransferEnabled() { return config.getBoolean("elixir.transfer-enabled", false); }
     public double getElixirTransferTaxRate() { return config.getDouble("elixir.transfer-tax-rate", 0.0); }
 

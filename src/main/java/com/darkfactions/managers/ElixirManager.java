@@ -11,6 +11,7 @@ import com.darkfactions.models.Faction;
 import com.darkfactions.storage.DataStore;
 import com.darkfactions.storage.SaveQueue;
 import com.darkfactions.utils.ConfigManager;
+import com.darkfactions.utils.DirtyKeySet;
 import com.darkfactions.utils.ElixirDailyRules;
 
 import java.time.ZoneId;
@@ -20,7 +21,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Level;
 
 public class ElixirManager {
@@ -29,11 +29,15 @@ public class ElixirManager {
     private final Map<UUID, Double> pendingElixir;
     private final Map<UUID, Long> lastDailyClaim;
     private final Set<UUID> pendingElixirDeletions;
-    private final AtomicBoolean pendingDirty;
+
+    // Per-key dirty tracking so a save cycle only rewrites the players whose
+    // pending elixir or daily-claim timestamp actually changed, instead of the
+    // whole table on every cycle.
+    private final DirtyKeySet<UUID> dirtyPendingElixir;
+    private final DirtyKeySet<UUID> dirtyDailyClaims;
 
     // Cached config values
     private double perEnemyKill;
-    private double perAnyKill;
     private double perRaid;
     private double raidStealPercent;
     private double dailyBonus;
@@ -46,7 +50,8 @@ public class ElixirManager {
         this.pendingElixir = new ConcurrentHashMap<>();
         this.lastDailyClaim = new ConcurrentHashMap<>();
         this.pendingElixirDeletions = ConcurrentHashMap.newKeySet();
-        this.pendingDirty = new AtomicBoolean(false);
+        this.dirtyPendingElixir = new DirtyKeySet<>();
+        this.dirtyDailyClaims = new DirtyKeySet<>();
         reloadConfig();
     }
 
@@ -56,7 +61,6 @@ public class ElixirManager {
     public void reloadConfig() {
         ConfigManager cfg = plugin.getConfigManager();
         this.perEnemyKill = cfg.getElixirPerEnemyKill();
-        this.perAnyKill = cfg.getElixirPerAnyKill();
         this.perRaid = cfg.getElixirPerRaid();
         this.raidStealPercent = cfg.getElixirRaidStealPercent();
         this.dailyBonus = cfg.getElixirDailyBonus();
@@ -98,12 +102,7 @@ public class ElixirManager {
         addFactionElixir(killerFactionId, perEnemyKill);
     }
 
-    // Any player kill
-    public void onAnyKill(UUID killerFactionId) {
-        addFactionElixir(killerFactionId, perAnyKill);
-    }
-
-    // Raid
+    // Raid: flat reward plus optional steal from the victim faction
     public void onSuccessfulRaid(UUID raiderFactionId, UUID victimFactionId) {
         addFactionElixir(raiderFactionId, perRaid);
 
@@ -125,7 +124,7 @@ public class ElixirManager {
         }
 
         lastDailyClaim.put(playerUuid, now);
-        pendingDirty.set(true);
+        dirtyDailyClaims.markDirty(playerUuid);
 
         if (autoClaimOnJoin) {
             // Auto-claim the daily bonus directly to their faction
@@ -136,6 +135,7 @@ public class ElixirManager {
         } else {
             // Add to pending - claimed via /f elixir
             pendingElixir.merge(playerUuid, dailyBonus, Double::sum);
+            dirtyPendingElixir.markDirty(playerUuid);
         }
     }
 
@@ -147,7 +147,7 @@ public class ElixirManager {
     public void addPendingElixir(UUID playerUuid, double amount) {
         if (amount <= 0) return;
         pendingElixir.merge(playerUuid, amount, Double::sum);
-        pendingDirty.set(true);
+        dirtyPendingElixir.markDirty(playerUuid);
     }
 
     /** Deduct from a player's pending (unclaimed) elixir balance. */
@@ -159,10 +159,11 @@ public class ElixirManager {
         if (remaining <= 0) {
             pendingElixir.remove(playerUuid);
             pendingElixirDeletions.add(playerUuid);
+            dirtyPendingElixir.clear(playerUuid);
         } else {
             pendingElixir.put(playerUuid, remaining);
+            dirtyPendingElixir.markDirty(playerUuid);
         }
-        pendingDirty.set(true);
         return true;
     }
 
@@ -178,7 +179,7 @@ public class ElixirManager {
         double amount = pendingElixir.remove(playerUuid);
         faction.addElixir(amount);
         pendingElixirDeletions.add(playerUuid);
-        pendingDirty.set(true);
+        dirtyPendingElixir.clear(playerUuid);
         return true;
     }
 
@@ -236,17 +237,20 @@ public class ElixirManager {
 
     public void saveToStoreAsync(SaveQueue queue) {
         boolean hasDeletions = !pendingElixirDeletions.isEmpty();
-        if (!pendingDirty.getAndSet(false) && !hasDeletions) return;
+        Set<UUID> pendingKeys = dirtyPendingElixir.drain();
+        Set<UUID> claimKeys = dirtyDailyClaims.drain();
+        if (pendingKeys.isEmpty() && claimKeys.isEmpty() && !hasDeletions) return;
 
         List<UUID> toDelete = hasDeletions ? new ArrayList<>(pendingElixirDeletions) : List.of();
         pendingElixirDeletions.removeAll(toDelete);
 
         queue.submit(() -> {
             try {
-                flushToStore(queue.store(), toDelete);
+                flushToStore(queue.store(), toDelete, pendingKeys, claimKeys);
             } catch (RuntimeException e) {
                 pendingElixirDeletions.addAll(toDelete);
-                pendingDirty.set(true);
+                dirtyPendingElixir.restore(pendingKeys);
+                dirtyDailyClaims.restore(claimKeys);
                 plugin.getLogger().log(Level.SEVERE, "Elixir data save failed, will retry on the next save cycle", e);
             }
         });
@@ -255,29 +259,34 @@ public class ElixirManager {
     /** Synchronous save used during plugin shutdown; clears dirty only after a confirmed write. */
     public void saveToStoreSync(DataStore store) {
         boolean hasDeletions = !pendingElixirDeletions.isEmpty();
-        if (!pendingDirty.get() && !hasDeletions) return;
+        Set<UUID> pendingKeys = dirtyPendingElixir.drain();
+        Set<UUID> claimKeys = dirtyDailyClaims.drain();
+        if (pendingKeys.isEmpty() && claimKeys.isEmpty() && !hasDeletions) return;
 
         List<UUID> toDelete = hasDeletions ? new ArrayList<>(pendingElixirDeletions) : List.of();
         pendingElixirDeletions.removeAll(toDelete);
 
         try {
-            flushToStore(store, toDelete);
-            pendingDirty.set(false);
+            flushToStore(store, toDelete, pendingKeys, claimKeys);
         } catch (RuntimeException e) {
             pendingElixirDeletions.addAll(toDelete);
+            dirtyPendingElixir.restore(pendingKeys);
+            dirtyDailyClaims.restore(claimKeys);
             plugin.getLogger().log(Level.SEVERE, "Elixir data save failed during shutdown", e);
         }
     }
 
-    private void flushToStore(DataStore store, List<UUID> toDelete) {
+    private void flushToStore(DataStore store, List<UUID> toDelete, Set<UUID> pendingKeys, Set<UUID> claimKeys) {
         for (UUID playerUuid : toDelete) {
             store.deletePendingElixir(playerUuid);
         }
-        for (Map.Entry<UUID, Double> e : pendingElixir.entrySet()) {
-            store.savePendingElixir(e.getKey(), e.getValue());
+        for (UUID playerUuid : pendingKeys) {
+            Double amount = pendingElixir.get(playerUuid);
+            if (amount != null) store.savePendingElixir(playerUuid, amount);
         }
-        for (Map.Entry<UUID, Long> e : lastDailyClaim.entrySet()) {
-            store.saveLastDailyClaim(e.getKey(), e.getValue());
+        for (UUID playerUuid : claimKeys) {
+            Long claim = lastDailyClaim.get(playerUuid);
+            if (claim != null) store.saveLastDailyClaim(playerUuid, claim);
         }
     }
 }

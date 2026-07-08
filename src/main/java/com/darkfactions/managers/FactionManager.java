@@ -248,6 +248,7 @@ public class FactionManager {
 
     // ==========================================
     // Ally Request System
+    // /f ally <name> sends a request; target uses /f ally accept|deny <name>
     // ==========================================
 
     /**
@@ -269,18 +270,18 @@ public class FactionManager {
      * @return false if no pending request exists
      */
     public boolean acceptAllyRequest(UUID acceptingFactionId, UUID requestingFactionId) {
+        Faction accepting = factions.get(acceptingFactionId);
+        Faction requesting = factions.get(requestingFactionId);
+        if (accepting == null || requesting == null) {
+            return false;
+        }
+
         Set<UUID> requests = pendingAllyRequests.get(acceptingFactionId);
         if (requests == null || !requests.remove(requestingFactionId)) {
             return false;
         }
         if (requests.isEmpty()) {
             pendingAllyRequests.remove(acceptingFactionId);
-        }
-
-        Faction accepting = factions.get(acceptingFactionId);
-        Faction requesting = factions.get(requestingFactionId);
-        if (accepting == null || requesting == null) {
-            return false;
         }
 
         accepting.removeEnemy(requestingFactionId);
@@ -304,6 +305,15 @@ public class FactionManager {
         pendingAllyRequests.remove(factionId);
         pendingAllyRequests.values().forEach(set -> set.remove(factionId));
         pendingAllyRequests.values().removeIf(Set::isEmpty);
+    }
+
+    // Drops any pending request between the two factions in either direction, so an
+    // old request can't silently complete a future, unrelated /f ally handshake.
+    public void clearAllianceRequests(UUID factionAId, UUID factionBId) {
+        Set<UUID> requestsToA = pendingAllyRequests.get(factionAId);
+        if (requestsToA != null) requestsToA.remove(factionBId);
+        Set<UUID> requestsToB = pendingAllyRequests.get(factionBId);
+        if (requestsToB != null) requestsToB.remove(factionAId);
     }
 
     // ==========================================

@@ -75,7 +75,7 @@ power:
   # Power gained for killing a mob
   gain-on-mob-kill: 0.0
 
-  # Power gained for winning a raid
+  # Power gained for winning a raid (enemy unclaim of raidable land)
   gain-on-raid-win: 5.0
 
   # Power required per claimed chunk (faction effective power must be >= claims * this)
@@ -92,10 +92,7 @@ elixir:
   # Elixir earned for killing an enemy faction member
   per-enemy-kill: 5.0
 
-  # Elixir earned for killing any player
-  per-any-kill: 1.0
-
-  # Elixir earned for raiding another faction (steal)
+  # Elixir earned for raiding another faction (enemy unclaim of raidable land)
   per-raid: 25.0
 
   # Percentage of victim's elixir stolen on raid (0.0 - 1.0)
@@ -128,14 +125,19 @@ elixir:
   # Tax rate for faction transfers (0.0 = no tax, 0.1 = 10% tax)
   transfer-tax-rate: 0.0
 
-  # Shop: elixir cost per +1 bonus power
-  shop-power-cost: 10.0
+# ==========================================
+# SHOP
+# Prices for /f shop upgrades
+# ==========================================
+shop:
+  # Elixir cost per 1 point of /f shop power
+  power-cost: 10.0
 
-  # Shop: elixir cost per +5 max power
-  shop-max-power-cost: 20.0
+  # Elixir cost per maxpower-amount points of /f shop maxpower
+  maxpower-cost: 20.0
 
-  # How much max power each shop purchase grants
-  shop-max-power-amount: 5.0
+  # Max power granted per maxpower-cost elixir spent
+  maxpower-amount: 5.0
 
 # ==========================================
 # FACTION SETTINGS
@@ -191,6 +193,12 @@ faction:
 
   # Max tag length
   max-tag-length: 6
+
+  # Allowed characters in faction tags. Same FULL-STRING regex rules as
+  # name-allowed-chars above (matched via String.matches, so anchor and quantify
+  # it). This blocks '&' color codes in tags, which would otherwise be rendered
+  # as real formatting in faction/ally chat.
+  tag-allowed-chars: '^[a-zA-Z0-9_]+$'
 
   # Max description length
   max-description-length: 100

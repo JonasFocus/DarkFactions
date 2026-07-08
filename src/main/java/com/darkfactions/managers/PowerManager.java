@@ -239,7 +239,7 @@ public class PowerManager {
         data.setPower(PowerRules.applyGain(data.getPower(), powerGainOnMobKill, maxPlayerPower));
     }
 
-    // Called when a player's faction wins a raid
+    // Called when a player's faction wins a raid (enemy unclaim of raidable land)
     public void onRaidWin(UUID factionId) {
         double raidPower = plugin.getConfigManager().getPowerGainOnRaidWin();
         if (raidPower <= 0) return;

@@ -169,12 +169,8 @@ public class FactionInfoCommands extends AbstractFactionSubcommand {
 
         if (!requireArgs(player, args, 2, "/f show <faction>")) return true;
 
-        Faction faction = plugin.getFactionManager().getFactionByName(args[1]);
-
-        if (faction == null) {
-            player.sendMessage(msg.error("No faction found with that name!"));
-            return true;
-        }
+        Faction faction = requireFactionByName(player, args[1]);
+        if (faction == null) return true;
 
         player.sendMessage(msg.header("=== " + faction.getFormattedTag() + faction.getName() + " ==="));
         player.sendMessage(msg.info("Leader: " + plugin.getPlayerNameCache().getPlayerName(faction.getLeaderUuid())));

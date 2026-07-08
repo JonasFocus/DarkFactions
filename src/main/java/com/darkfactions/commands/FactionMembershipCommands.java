@@ -215,11 +215,8 @@ public class FactionMembershipCommands extends AbstractFactionSubcommand {
             return true;
         }
 
-        Faction faction = plugin.getFactionManager().getFactionByName(args[1]);
-        if (faction == null) {
-            player.sendMessage(msg.error("No faction found with that name!"));
-            return true;
-        }
+        Faction faction = requireFactionByName(player, args[1]);
+        if (faction == null) return true;
 
         // Check if open faction (anyone can join)
         if (faction.isOpen()) {
@@ -269,11 +266,8 @@ public class FactionMembershipCommands extends AbstractFactionSubcommand {
 
         if (!requireArgs(player, args, 2, "/f deny <faction>")) return true;
 
-        Faction faction = plugin.getFactionManager().getFactionByName(args[1]);
-        if (faction == null) {
-            player.sendMessage(msg.error("No faction found with that name!"));
-            return true;
-        }
+        Faction faction = requireFactionByName(player, args[1]);
+        if (faction == null) return true;
 
         if (!plugin.getFactionManager().hasPendingInvite(player.getUniqueId(), faction.getFactionId())) {
             player.sendMessage(msg.error("You don't have an invite from that faction!"));

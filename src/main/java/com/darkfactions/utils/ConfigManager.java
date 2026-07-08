@@ -81,7 +81,6 @@ public class ConfigManager {
     // ELIXIR
     // ==========================================
     public double getElixirPerEnemyKill() { return config.getDouble("elixir.per-enemy-kill", 5.0); }
-    public double getElixirPerAnyKill() { return config.getDouble("elixir.per-any-kill", 1.0); }
     public double getElixirPerRaid() { return config.getDouble("elixir.per-raid", 25.0); }
     public double getElixirRaidStealPercent() { return config.getDouble("elixir.raid-steal-percent", 0.5); }
     public double getElixirDailyBonus() { return config.getDouble("elixir.daily-bonus", 10.0); }
@@ -93,9 +92,13 @@ public class ConfigManager {
     public double getElixirSetTagCost() { return config.getDouble("elixir.set-tag-cost", 5.0); }
     public boolean isElixirTransferEnabled() { return config.getBoolean("elixir.transfer-enabled", false); }
     public double getElixirTransferTaxRate() { return config.getDouble("elixir.transfer-tax-rate", 0.0); }
-    public double getShopPowerCost() { return config.getDouble("elixir.shop-power-cost", 10.0); }
-    public double getShopMaxPowerCost() { return config.getDouble("elixir.shop-max-power-cost", 20.0); }
-    public double getShopMaxPowerAmount() { return config.getDouble("elixir.shop-max-power-amount", 5.0); }
+
+    // ==========================================
+    // SHOP
+    // ==========================================
+    public double getShopPowerCost() { return config.getDouble("shop.power-cost", 10.0); }
+    public double getShopMaxPowerCost() { return config.getDouble("shop.maxpower-cost", 20.0); }
+    public double getShopMaxPowerAmount() { return config.getDouble("shop.maxpower-amount", 5.0); }
 
     // ==========================================
     // FACTION
@@ -115,6 +118,7 @@ public class ConfigManager {
     public boolean isDisbandRequiresConfirm() { return config.getBoolean("faction.disband-requires-confirm", true); }
     public boolean isBroadcastFactionNews() { return config.getBoolean("faction.broadcast-faction-news", true); }
     public int getMaxTagLength() { return config.getInt("faction.max-tag-length", 6); }
+    public String getFactionTagAllowedChars() { return config.getString("faction.tag-allowed-chars", FactionNameValidator.DEFAULT_ALLOWED_CHARS); }
     public int getMaxDescriptionLength() { return config.getInt("faction.max-description-length", 100); }
     public int getMaxMotdLength() { return config.getInt("faction.max-motd-length", 255); }
     public boolean isDefaultOpen() { return config.getBoolean("faction.default-open", false); }

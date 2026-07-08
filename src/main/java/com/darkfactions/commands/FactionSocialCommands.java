@@ -5,6 +5,7 @@ package com.darkfactions.commands;
 
 import com.darkfactions.DarkFactions;
 import com.darkfactions.models.Faction;
+import com.darkfactions.utils.FactionNameValidator;
 
 import org.bukkit.entity.Player;
 
@@ -134,6 +135,16 @@ public class FactionSocialCommands extends AbstractFactionSubcommand {
         int maxTagLength = plugin.getConfigManager().getMaxTagLength();
         if (tag.length() > maxTagLength) {
             player.sendMessage(msg.error("Tag must be " + maxTagLength + " characters or less!"));
+            return true;
+        }
+
+        // Validate tag characters the same way faction names are validated. Without
+        // this, a '&' color code in the tag gets converted to a real section sign by
+        // ChatFormatter and renders as formatting in every faction/ally chat message.
+        String allowedTagChars = plugin.getConfigManager().getFactionTagAllowedChars();
+        if (FactionNameValidator.validate(tag, 1, maxTagLength, allowedTagChars)
+                == FactionNameValidator.Result.INVALID_CHARS) {
+            player.sendMessage(msg.error("Tag can only contain letters, numbers, and underscores!"));
             return true;
         }
 
@@ -305,22 +316,16 @@ public class FactionSocialCommands extends AbstractFactionSubcommand {
         String action = args[1].toLowerCase();
         if (action.equals("accept") || action.equals("deny")) {
             if (!requireArgs(player, args, 3, "/f ally " + action + " <faction>")) return true;
-            Faction requesting = plugin.getFactionManager().getFactionByName(args[2]);
-            if (requesting == null) {
-                player.sendMessage(msg.error("No faction found with that name!"));
-                return true;
-            }
+            Faction requesting = requireFactionByName(player, args[2]);
+            if (requesting == null) return true;
             if (action.equals("accept")) {
                 return handleAllyAccept(player, faction, requesting);
             }
             return handleAllyDeny(player, faction, requesting);
         }
 
-        Faction targetFaction = plugin.getFactionManager().getFactionByName(args[1]);
-        if (targetFaction == null) {
-            player.sendMessage(msg.error("No faction found with that name!"));
-            return true;
-        }
+        Faction targetFaction = requireFactionByName(player, args[1]);
+        if (targetFaction == null) return true;
 
         if (targetFaction.getFactionId().equals(faction.getFactionId())) {
             player.sendMessage(msg.error("You can't ally with yourself!"));
@@ -403,11 +408,8 @@ public class FactionSocialCommands extends AbstractFactionSubcommand {
 
         if (!requireOfficer(player, faction, "Only leaders and officers can manage enemies!")) return true;
 
-        Faction targetFaction = plugin.getFactionManager().getFactionByName(args[1]);
-        if (targetFaction == null) {
-            player.sendMessage(msg.error("No faction found with that name!"));
-            return true;
-        }
+        Faction targetFaction = requireFactionByName(player, args[1]);
+        if (targetFaction == null) return true;
 
         if (targetFaction.getFactionId().equals(faction.getFactionId())) {
             player.sendMessage(msg.error("You can't declare war on yourself!"));
@@ -421,6 +423,7 @@ public class FactionSocialCommands extends AbstractFactionSubcommand {
 
         faction.removeAlly(targetFaction.getFactionId());
         targetFaction.removeAlly(faction.getFactionId());
+        plugin.getFactionManager().clearAllianceRequests(faction.getFactionId(), targetFaction.getFactionId());
 
         faction.addEnemy(targetFaction.getFactionId());
         targetFaction.addEnemy(faction.getFactionId());
@@ -452,16 +455,14 @@ public class FactionSocialCommands extends AbstractFactionSubcommand {
 
         if (!requireOfficer(player, faction, "Only leaders and officers can manage relations!")) return true;
 
-        Faction targetFaction = plugin.getFactionManager().getFactionByName(args[1]);
-        if (targetFaction == null) {
-            player.sendMessage(msg.error("No faction found with that name!"));
-            return true;
-        }
+        Faction targetFaction = requireFactionByName(player, args[1]);
+        if (targetFaction == null) return true;
 
         faction.removeEnemy(targetFaction.getFactionId());
         faction.removeAlly(targetFaction.getFactionId());
         targetFaction.removeEnemy(faction.getFactionId());
         targetFaction.removeAlly(faction.getFactionId());
+        plugin.getFactionManager().clearAllianceRequests(faction.getFactionId(), targetFaction.getFactionId());
 
         player.sendMessage(msg.info("You are now neutral with " + targetFaction.getName() + "."));
 

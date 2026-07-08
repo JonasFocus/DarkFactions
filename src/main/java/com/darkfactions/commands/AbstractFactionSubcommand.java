@@ -50,6 +50,16 @@ public abstract class AbstractFactionSubcommand {
         return faction;
     }
 
+    // Look up a faction by name, or null after telling the sender it doesn't exist.
+    // Works for both players and console (CommandSender covers both in Bukkit).
+    protected Faction requireFactionByName(CommandSender sender, String name) {
+        Faction faction = plugin.getFactionManager().getFactionByName(name);
+        if (faction == null) {
+            sender.sendMessage(msg.error("No faction found with that name!"));
+        }
+        return faction;
+    }
+
     // Ensure at least `min` arguments were given, else show the usage string.
     // Returns true when the args are sufficient.
     protected boolean requireArgs(Player player, String[] args, int min, String usage) {

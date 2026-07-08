@@ -285,11 +285,8 @@ public class FactionSocialCommands extends AbstractFactionSubcommand {
 
         if (!requireOfficer(player, faction, "Only leaders and officers can manage alliances!")) return true;
 
-        Faction targetFaction = plugin.getFactionManager().getFactionByName(args[1]);
-        if (targetFaction == null) {
-            player.sendMessage(msg.error("No faction found with that name!"));
-            return true;
-        }
+        Faction targetFaction = requireFactionByName(player, args[1]);
+        if (targetFaction == null) return true;
 
         if (targetFaction.getFactionId().equals(faction.getFactionId())) {
             player.sendMessage(msg.error("You can't ally with yourself!"));
@@ -347,11 +344,8 @@ public class FactionSocialCommands extends AbstractFactionSubcommand {
 
         if (!requireOfficer(player, faction, "Only leaders and officers can manage enemies!")) return true;
 
-        Faction targetFaction = plugin.getFactionManager().getFactionByName(args[1]);
-        if (targetFaction == null) {
-            player.sendMessage(msg.error("No faction found with that name!"));
-            return true;
-        }
+        Faction targetFaction = requireFactionByName(player, args[1]);
+        if (targetFaction == null) return true;
 
         if (targetFaction.getFactionId().equals(faction.getFactionId())) {
             player.sendMessage(msg.error("You can't declare war on yourself!"));
@@ -397,11 +391,8 @@ public class FactionSocialCommands extends AbstractFactionSubcommand {
 
         if (!requireOfficer(player, faction, "Only leaders and officers can manage relations!")) return true;
 
-        Faction targetFaction = plugin.getFactionManager().getFactionByName(args[1]);
-        if (targetFaction == null) {
-            player.sendMessage(msg.error("No faction found with that name!"));
-            return true;
-        }
+        Faction targetFaction = requireFactionByName(player, args[1]);
+        if (targetFaction == null) return true;
 
         faction.removeEnemy(targetFaction.getFactionId());
         faction.removeAlly(targetFaction.getFactionId());

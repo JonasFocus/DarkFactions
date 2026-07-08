@@ -5,6 +5,7 @@ package com.darkfactions.commands;
 
 import com.darkfactions.DarkFactions;
 import com.darkfactions.models.Faction;
+import com.darkfactions.utils.FactionNameValidator;
 
 import org.bukkit.entity.Player;
 
@@ -134,6 +135,16 @@ public class FactionSocialCommands extends AbstractFactionSubcommand {
         int maxTagLength = plugin.getConfigManager().getMaxTagLength();
         if (tag.length() > maxTagLength) {
             player.sendMessage(msg.error("Tag must be " + maxTagLength + " characters or less!"));
+            return true;
+        }
+
+        // Validate tag characters the same way faction names are validated. Without
+        // this, a '&' color code in the tag gets converted to a real section sign by
+        // ChatFormatter and renders as formatting in every faction/ally chat message.
+        String allowedTagChars = plugin.getConfigManager().getFactionTagAllowedChars();
+        if (FactionNameValidator.validate(tag, 1, maxTagLength, allowedTagChars)
+                == FactionNameValidator.Result.INVALID_CHARS) {
+            player.sendMessage(msg.error("Tag can only contain letters, numbers, and underscores!"));
             return true;
         }
 

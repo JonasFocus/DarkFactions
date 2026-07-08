@@ -121,6 +121,7 @@ public class ConfigManager {
     public boolean isDisbandRequiresConfirm() { return config.getBoolean("faction.disband-requires-confirm", true); }
     public boolean isBroadcastFactionNews() { return config.getBoolean("faction.broadcast-faction-news", true); }
     public int getMaxTagLength() { return config.getInt("faction.max-tag-length", 6); }
+    public String getFactionTagAllowedChars() { return config.getString("faction.tag-allowed-chars", FactionNameValidator.DEFAULT_ALLOWED_CHARS); }
     public int getMaxDescriptionLength() { return config.getInt("faction.max-description-length", 100); }
     public int getMaxMotdLength() { return config.getInt("faction.max-motd-length", 255); }
     public boolean isDefaultOpen() { return config.getBoolean("faction.default-open", false); }

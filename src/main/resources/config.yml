@@ -219,6 +219,12 @@ faction:
   # Max tag length
   max-tag-length: 6
 
+  # Allowed characters in faction tags. Same FULL-STRING regex rules as
+  # name-allowed-chars above (matched via String.matches, so anchor and quantify
+  # it). This blocks '&' color codes in tags, which would otherwise be rendered
+  # as real formatting in faction/ally chat.
+  tag-allowed-chars: '^[a-zA-Z0-9_]+$'
+
   # Max description length
   max-description-length: 100
 

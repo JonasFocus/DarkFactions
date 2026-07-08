@@ -49,6 +49,15 @@ class FactionNameValidatorTest {
     }
 
     @Test
+    void rejectsColorCodesWhenReusedForTags() {
+        // Faction tags reuse this validator with a short length bound. An '&'
+        // color code must be rejected so it can't be turned into a real section
+        // sign and rendered as formatting in faction/ally chat.
+        assertEquals(Result.INVALID_CHARS, FactionNameValidator.validate("&c", 1, 6, PATTERN));
+        assertEquals(Result.VALID, FactionNameValidator.validate("KOS", 1, 6, PATTERN));
+    }
+
+    @Test
     void defaultPatternIsAnchoredAndQuantified() {
         // Guards against regressing to a bare single-character class, the
         // original bug: such a pattern would match "a" but not "ab".

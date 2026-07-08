@@ -212,15 +212,6 @@ public class PowerManager {
         data.setPower(PowerRules.applyGain(data.getPower(), powerGainOnMobKill, maxPlayerPower));
     }
 
-    // Called when a player's faction wins a raid
-    public void onRaidWin(UUID factionId) {
-        double raidPower = plugin.getConfigManager().getPowerGainOnRaidWin();
-        if (raidPower <= 0) return;
-        Faction faction = plugin.getFactionManager().getFaction(factionId);
-        if (faction == null) return;
-        faction.addBonusPower(raidPower);
-    }
-
     // Regenerate power for ALL players
     private void regenAllPlayerPower() {
         for (FactionPlayer data : playerDataMap.values()) {

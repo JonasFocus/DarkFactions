@@ -100,9 +100,6 @@ power:
   # Power gained for killing a mob
   gain-on-mob-kill: 0.0
 
-  # Power gained for winning a raid
-  gain-on-raid-win: 5.0
-
 # ==========================================
 # ELIXIR SETTINGS
 # Controls the faction economy / points system
@@ -110,15 +107,6 @@ power:
 elixir:
   # Elixir earned for killing an enemy faction member
   per-enemy-kill: 5.0
-
-  # Elixir earned for killing any player
-  per-any-kill: 1.0
-
-  # Elixir earned for raiding another faction (steal)
-  per-raid: 25.0
-
-  # Percentage of victim's elixir stolen on raid (0.0 - 1.0)
-  raid-steal-percent: 0.5
 
   # Daily login bonus (given on join, claimed via /f elixir)
   daily-bonus: 10.0
@@ -131,18 +119,6 @@ elixir:
 
   # Elixir lost when a chunk is unclaimed/raided
   per-chunk-lost: 2.0
-
-  # Elixir earned per hour of playtime
-  per-playtime-hour: 2.0
-
-  # Cost (in elixir) to create a new faction (0 = free)
-  create-faction-cost: 0.0
-
-  # Cost (in elixir) to rename a faction (0 = free)
-  rename-faction-cost: 10.0
-
-  # Cost (in elixir) to set a faction tag (0 = free)
-  set-tag-cost: 5.0
 
   # Enable elixir transfer between factions
   transfer-enabled: false

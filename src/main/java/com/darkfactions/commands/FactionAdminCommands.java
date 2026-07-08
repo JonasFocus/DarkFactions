@@ -64,11 +64,8 @@ public class FactionAdminCommands extends AbstractFactionSubcommand {
 
     private boolean handleClaim(Player player, String[] args) {
         if (!requireArgs(player, args, 3, "/f admin claim <faction>")) return true;
-        Faction claimFor = plugin.getFactionManager().getFactionByName(args[2]);
-        if (claimFor == null) {
-            player.sendMessage(msg.error("Faction not found!"));
-            return true;
-        }
+        Faction claimFor = requireFactionByName(player, args[2]);
+        if (claimFor == null) return true;
         Chunk chunk = player.getLocation().getChunk();
         ClaimResult result = plugin.getClaimManager().claimChunk(chunk, claimFor.getFactionId());
         if (result.isSuccess()) {
@@ -187,11 +184,8 @@ public class FactionAdminCommands extends AbstractFactionSubcommand {
     }
 
     private boolean setFactionAmount(CommandSender sender, String[] args, String label, ObjDoubleConsumer<Faction> setter) {
-        Faction faction = plugin.getFactionManager().getFactionByName(args[2]);
-        if (faction == null) {
-            sender.sendMessage(msg.error("Faction not found!"));
-            return true;
-        }
+        Faction faction = requireFactionByName(sender, args[2]);
+        if (faction == null) return true;
         try {
             double amount = Double.parseDouble(args[3]);
             setter.accept(faction, amount);
@@ -204,11 +198,8 @@ public class FactionAdminCommands extends AbstractFactionSubcommand {
     }
 
     private boolean handleRemove(CommandSender sender, String[] args) {
-        Faction removeFaction = plugin.getFactionManager().getFactionByName(args[2]);
-        if (removeFaction == null) {
-            sender.sendMessage(msg.error("Faction not found!"));
-            return true;
-        }
+        Faction removeFaction = requireFactionByName(sender, args[2]);
+        if (removeFaction == null) return true;
         String removedName = removeFaction.getName();
 
         // deleteFaction() already removes this faction's claims internally.

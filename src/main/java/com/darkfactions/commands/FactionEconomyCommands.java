@@ -173,11 +173,8 @@ public class FactionEconomyCommands extends AbstractFactionSubcommand {
 
         if (!requireLeader(player, faction, "Only the leader can transfer elixir!")) return true;
 
-        Faction target = plugin.getFactionManager().getFactionByName(args[1]);
-        if (target == null) {
-            player.sendMessage(msg.error("No faction found with that name!"));
-            return true;
-        }
+        Faction target = requireFactionByName(player, args[1]);
+        if (target == null) return true;
 
         if (target.getFactionId().equals(faction.getFactionId())) {
             player.sendMessage(msg.error("You can't transfer elixir to yourself!"));

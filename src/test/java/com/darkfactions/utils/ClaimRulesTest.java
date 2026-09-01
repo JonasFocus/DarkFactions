@@ -26,6 +26,22 @@ class ClaimRulesTest {
     }
 
     @Test
+    void parseKeySplitsNormalWorldAndNegativeCoords() {
+        ClaimRules.ParsedKey parsed = ClaimRules.parseKey("world:3:-4");
+        assertEquals("world", parsed.world());
+        assertEquals(3, parsed.x());
+        assertEquals(-4, parsed.z());
+    }
+
+    @Test
+    void parseKeyKeepsColonsInsideWorldName() {
+        ClaimRules.ParsedKey parsed = ClaimRules.parseKey("foo:bar:1:2");
+        assertEquals("foo:bar", parsed.world());
+        assertEquals(1, parsed.x());
+        assertEquals(2, parsed.z());
+    }
+
+    @Test
     void isOwnedByDistinguishesOwnerMissingAndOther() {
         Map<String, UUID> claims = claims();
         claims.put(ClaimRules.key(WORLD, 0, 0), OURS);

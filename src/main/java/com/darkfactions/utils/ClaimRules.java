@@ -17,9 +17,43 @@ public final class ClaimRules {
     private ClaimRules() {
     }
 
+    /** World name and chunk coordinates parsed from a claim-map key. */
+    public record ParsedKey(String world, int x, int z) {
+    }
+
     /** Build the canonical claim-map key for a chunk: {@code "world:x:z"}. */
     public static String key(String worldName, int x, int z) {
         return worldName + ":" + x + ":" + z;
+    }
+
+    /**
+     * Split a claim-map key from the last two colons so world names may contain
+     * {@code ':'}. Throws {@link IllegalArgumentException} if the key does not
+     * have two separators or if the coordinates are not integers.
+     */
+    public static ParsedKey parseKey(String key) {
+        if (key == null) {
+            throw new IllegalArgumentException("claim key must not be null");
+        }
+        int lastColon = key.lastIndexOf(':');
+        if (lastColon <= 0) {
+            throw new IllegalArgumentException("malformed claim key: " + key);
+        }
+        int secondLast = key.lastIndexOf(':', lastColon - 1);
+        if (secondLast < 0) {
+            throw new IllegalArgumentException("malformed claim key: " + key);
+        }
+        String world = key.substring(0, secondLast);
+        if (world.isEmpty()) {
+            throw new IllegalArgumentException("malformed claim key: " + key);
+        }
+        try {
+            int x = Integer.parseInt(key.substring(secondLast + 1, lastColon));
+            int z = Integer.parseInt(key.substring(lastColon + 1));
+            return new ParsedKey(world, x, z);
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("malformed claim key: " + key, e);
+        }
     }
 
     /** True if the chunk at (x, z) is claimed by the given faction. */

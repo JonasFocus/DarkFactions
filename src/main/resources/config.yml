@@ -232,7 +232,7 @@ claim:
   # Whether new claims must be adjacent to existing territory
   require-connection: true
 
-  # First claim is always free (ignores adjacency, cost, etc.)
+  # First claim always ignores adjacency; first-claim-free only skips elixir cost.
   first-claim-free: true
 
   # Minimum distance from world spawn to claim (in chunks)

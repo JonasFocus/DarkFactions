@@ -143,7 +143,7 @@ public class ClaimManager {
 
         int currentClaims = getClaimCount(factionId);
 
-        // Connection check (skip for first claim if firstClaimFree is on)
+        // First claim always ignores adjacency; first-claim-free only skips elixir cost.
         if (requireConnection && currentClaims > 0 && !isAdjacentToClaim(chunk, factionId)) {
             return ClaimResult.NOT_CONNECTED;
         }
@@ -188,6 +188,31 @@ public class ClaimManager {
         return ClaimResult.SUCCESS;
     }
 
+    /**
+     * Admin overwrite: claim this chunk for {@code factionId} with no player
+     * claim rules (world lists, adjacency, power, cap, elixir, spawn, buffer).
+     */
+    public ClaimResult forceClaim(Chunk chunk, UUID factionId) {
+        String key = chunkToKey(chunk);
+        UUID currentOwner = claimMap.get(key);
+
+        if (currentOwner != null && currentOwner.equals(factionId)) {
+            return ClaimResult.ALREADY_OWNED;
+        }
+
+        if (currentOwner != null) {
+            claimsByFaction.computeIfPresent(currentOwner, (id, keys) -> {
+                keys.remove(key);
+                return keys.isEmpty() ? null : keys;
+            });
+        }
+
+        claimMap.put(key, factionId);
+        claimsByFaction.computeIfAbsent(factionId, id -> ConcurrentHashMap.newKeySet()).add(key);
+        changes.recordUpsert(key);
+        return ClaimResult.SUCCESS;
+    }
+
     public boolean unclaimChunk(Chunk chunk) {
         String key = chunkToKey(chunk);
         UUID factionId = claimMap.remove(key);
@@ -198,16 +223,16 @@ public class ClaimManager {
                 return keys.isEmpty() ? null : keys;
             });
 
-            // Lose elixir for unclaiming — skip silently if the faction doesn't
-            // have enough, rather than blocking the unclaim entirely.
-            double lostElixir = plugin.getConfigManager().getElixirPerChunkLost();
-            if (lostElixir > 0) {
-                Faction faction = plugin.getFactionManager().getFaction(factionId);
-                if (faction != null) {
-                    if (!faction.removeElixir(lostElixir)) {
-                        plugin.getLogger().warning("Faction " + faction.getName()
-                                + " had insufficient elixir for unclaim penalty (" + lostElixir + ")");
-                    }
+            Faction faction = plugin.getFactionManager().getFaction(factionId);
+            if (faction != null) {
+                clearHomeIfOnClaim(faction, key);
+
+                // Lose elixir for unclaiming — skip silently if the faction doesn't
+                // have enough, rather than blocking the unclaim entirely.
+                double lostElixir = plugin.getConfigManager().getElixirPerChunkLost();
+                if (lostElixir > 0 && !faction.removeElixir(lostElixir)) {
+                    plugin.getLogger().warning("Faction " + faction.getName()
+                            + " had insufficient elixir for unclaim penalty (" + lostElixir + ")");
                 }
             }
 
@@ -221,6 +246,7 @@ public class ClaimManager {
     public int unclaimAll(UUID factionId) {
         // Collect first, then remove: avoids mutating claimMap while iterating it.
         List<String> toRemove = getFactionClaims(factionId);
+        Faction faction = plugin.getFactionManager().getFaction(factionId);
         for (String key : toRemove) {
             claimMap.remove(key);
             changes.recordDelete(key);
@@ -228,7 +254,39 @@ public class ClaimManager {
 
         claimsByFaction.remove(factionId);
 
+        if (faction != null) {
+            for (String key : toRemove) {
+                clearHomeIfOnClaim(faction, key);
+            }
+
+            // Charge the per-chunk unclaim penalty once. Cap at the current
+            // balance so a short treasury cannot block the mass unclaim.
+            double lostElixir = plugin.getConfigManager().getElixirPerChunkLost();
+            if (lostElixir > 0 && !toRemove.isEmpty()) {
+                double charge = Math.min(toRemove.size() * lostElixir, faction.getElixir());
+                if (charge > 0) {
+                    faction.removeElixir(charge);
+                }
+            }
+        }
+
         return toRemove.size();
+    }
+
+    /** Clear the faction home if it sits on the unclaimed chunk (world + blockX>>4 / blockZ>>4). */
+    private void clearHomeIfOnClaim(Faction faction, String claimKey) {
+        if (claimContainsHome(faction, claimKey)) {
+            faction.setWorldName(null);
+        }
+    }
+
+    private boolean claimContainsHome(Faction faction, String claimKey) {
+        if (!faction.hasHome()) {
+            return false;
+        }
+        int homeChunkX = ((int) Math.floor(faction.getHomeX())) >> 4;
+        int homeChunkZ = ((int) Math.floor(faction.getHomeZ())) >> 4;
+        return ClaimRules.key(faction.getWorldName(), homeChunkX, homeChunkZ).equals(claimKey);
     }
 
     // ==========================================

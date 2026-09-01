@@ -200,11 +200,13 @@ public class FactionInfoCommands extends AbstractFactionSubcommand {
         player.sendMessage(msg.info("PvP: " + (faction.isPvpEnabled() ? "Enabled" : "Disabled")));
         player.sendMessage(msg.info("TNT: " + (faction.isTntEnabled() ? "Enabled" : "Disabled")));
 
-        if (faction.hasHome()) {
+        if (faction.hasHome() && faction.isMember(player.getUniqueId())) {
             player.sendMessage(msg.info("Home: " + faction.getWorldName() + " at " +
                     String.format("%.0f", faction.getHomeX()) + ", " +
                     String.format("%.0f", faction.getHomeY()) + ", " +
                     String.format("%.0f", faction.getHomeZ())));
+        } else if (!faction.isMember(player.getUniqueId())) {
+            player.sendMessage(msg.info("Home Set: " + (faction.hasHome() ? "Yes" : "No")));
         }
 
         player.sendMessage(msg.info("Created: " + new java.text.SimpleDateFormat("MM/dd/yyyy")

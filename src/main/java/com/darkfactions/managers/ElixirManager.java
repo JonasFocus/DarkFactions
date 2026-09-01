@@ -13,6 +13,7 @@ import com.darkfactions.storage.SaveQueue;
 import com.darkfactions.utils.ConfigManager;
 import com.darkfactions.utils.DirtyKeySet;
 import com.darkfactions.utils.ElixirDailyRules;
+import com.darkfactions.utils.ElixirRaidRules;
 
 import java.time.ZoneId;
 import java.util.ArrayList;
@@ -109,9 +110,11 @@ public class ElixirManager {
         Faction victimFaction = plugin.getFactionManager().getFaction(victimFactionId);
         if (victimFaction != null) {
             // Steal a percentage of the victim's actual balance, capped at what they have
-            // so removeElixir can never fail.
-            double stolenAmount = Math.min(victimFaction.getElixir() * raidStealPercent, victimFaction.getElixir());
-            victimFaction.removeElixir(stolenAmount);
+            // so removeElixir can never fail. Credit the raider only after a successful debit.
+            double stolenAmount = ElixirRaidRules.stolenAmount(victimFaction.getElixir(), raidStealPercent);
+            if (stolenAmount > 0 && victimFaction.removeElixir(stolenAmount)) {
+                addFactionElixir(raiderFactionId, stolenAmount);
+            }
         }
     }
 

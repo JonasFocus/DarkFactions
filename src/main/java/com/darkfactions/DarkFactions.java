@@ -92,8 +92,11 @@ public class DarkFactions extends JavaPlugin {
             String dbName = configManager.getDatabaseName();
             String user = configManager.getDatabaseUsername();
             String pass = configManager.getDatabasePassword();
+            boolean useSsl = configManager.isDatabaseUseSsl();
+            boolean allowPublicKeyRetrieval = configManager.isDatabaseAllowPublicKeyRetrieval();
 
-            this.databaseManager = new DatabaseManager(this, dbType, host, port, dbName, user, pass);
+            this.databaseManager = new DatabaseManager(this, dbType, host, port, dbName, user, pass,
+                    useSsl, allowPublicKeyRetrieval);
             this.dataStore = new SqlStore(this, databaseManager);
             this.dataStore.createTables();
 

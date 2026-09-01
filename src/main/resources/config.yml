@@ -21,6 +21,10 @@ database:
     database: darkfactions
     username: root
     password: ""
+    # Set use-ssl true for remote MySQL
+    use-ssl: false
+    # Needed for some local caching_sha2 setups
+    allow-public-key-retrieval: true
 
 # ==========================================
 # GENERAL SETTINGS

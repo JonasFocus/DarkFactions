@@ -51,6 +51,8 @@ public class ConfigManager {
     public String getDatabaseName() { return config.getString("database.mysql.database", "darkfactions"); }
     public String getDatabaseUsername() { return config.getString("database.mysql.username", "root"); }
     public String getDatabasePassword() { return config.getString("database.mysql.password", ""); }
+    public boolean isDatabaseUseSsl() { return config.getBoolean("database.mysql.use-ssl", false); }
+    public boolean isDatabaseAllowPublicKeyRetrieval() { return config.getBoolean("database.mysql.allow-public-key-retrieval", true); }
 
     // ==========================================
     // GENERAL

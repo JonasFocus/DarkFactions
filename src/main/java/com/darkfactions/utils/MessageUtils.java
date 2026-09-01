@@ -5,7 +5,6 @@ package com.darkfactions.utils;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
-import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 
 public class MessageUtils {
 
@@ -49,27 +48,5 @@ public class MessageUtils {
     // Get just the plugin prefix (no extra formatting)
     public Component getChatPrefix() {
         return PREFIX;
-    }
-
-    // Format a message for faction-only chat
-    public Component factionChat(String factionTag, String playerName, String message) {
-        return scopedChat("[F] ", NamedTextColor.LIGHT_PURPLE, factionTag, playerName, message);
-    }
-
-    // Format a message for ally chat
-    public Component allyChat(String factionTag, String playerName, String message) {
-        return scopedChat("[A] ", NamedTextColor.DARK_AQUA, factionTag, playerName, message);
-    }
-
-    // Faction and ally chat share the same layout; only the leading scope label
-    // and its colour differ. The tag is deserialized as legacy text because it
-    // carries embedded colour codes from the faction's configured tag.
-    private Component scopedChat(String label, NamedTextColor labelColor,
-                                 String factionTag, String playerName, String message) {
-        return Component.text(label, labelColor)
-                .append(LegacyComponentSerializer.legacySection().deserialize(factionTag))
-                .append(Component.text(playerName, NamedTextColor.WHITE))
-                .append(Component.text(": ", NamedTextColor.GRAY))
-                .append(Component.text(message, NamedTextColor.WHITE));
     }
 }

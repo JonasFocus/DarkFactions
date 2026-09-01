@@ -10,7 +10,7 @@ import org.junit.jupiter.api.Test;
 class FactionManagerTest {
 
     @Test
-    void allyRequestIsPendingUntilAccepted() {
+    void pendingAllyRequestCannotBeAcceptedWithoutLoadedFactions() {
         FactionManager manager = new FactionManager(null);
         UUID a = UUID.randomUUID();
         UUID b = UUID.randomUUID();
@@ -18,6 +18,7 @@ class FactionManagerTest {
         assertTrue(manager.sendAllyRequest(a, b), "first request should be recorded");
         assertTrue(manager.hasPendingAllyRequest(a, b), "b should see a pending request from a");
         assertFalse(manager.hasPendingAllyRequest(b, a), "a has not been asked by b yet");
+        // No Faction objects are loaded, so accept cannot form the ally.
         assertFalse(manager.acceptAllyRequest(b, a), "accept without loaded factions cannot form the ally");
     }
 

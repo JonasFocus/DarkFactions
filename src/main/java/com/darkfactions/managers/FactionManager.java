@@ -377,8 +377,18 @@ public class FactionManager {
             String key = nameKey(originalName);
             if (factionsByName.containsKey(key)) {
                 // Duplicate case-insensitive name: rename in-memory so both load.
+                // Schema name is VARCHAR(32); truncate the original so
+                // base + "-" + 8-char suffix fits the column.
                 String suffix = f.getFactionId().toString().substring(0, 8);
-                String renamed = originalName + "-" + suffix;
+                int maxLen = 32;
+                if (plugin.getConfigManager() != null) {
+                    maxLen = plugin.getConfigManager().getMaxFactionNameLength();
+                }
+                int maxBase = Math.max(0, maxLen - 1 - suffix.length());
+                String base = originalName.length() <= maxBase
+                        ? originalName
+                        : originalName.substring(0, maxBase);
+                String renamed = base + "-" + suffix;
                 plugin.getLogger().severe("Duplicate faction name '" + originalName
                         + "' on load; renaming id " + f.getFactionId() + " to '" + renamed + "'");
                 f.setName(renamed);

@@ -419,19 +419,22 @@ public class ClaimManager {
     }
 
     private void flushDrain(DataStore store, ClaimChangeSet.Drain drain) {
-        // Both branches re-check the live claimMap rather than trusting the
-        // drained key, so the flush is order-independent across SaveQueue's
-        // worker threads: if a chunk is unclaimed then reclaimed across two
-        // flushes, whichever task runs last still leaves the database matching
-        // current ownership.
+        // Re-check live claimMap so this flush is self-contained: an upsert
+        // that was unclaimed becomes a delete, and a delete that is now owned
+        // is saved. A crash before the next cycle cannot resurrect or drop land.
         for (String key : drain.upserts()) {
             UUID owner = claimMap.get(key);
             if (owner != null) {
                 store.saveClaim(key, owner);
+            } else {
+                store.deleteClaim(key);
             }
         }
         for (String key : drain.deletes()) {
-            if (!claimMap.containsKey(key)) {
+            UUID owner = claimMap.get(key);
+            if (owner != null) {
+                store.saveClaim(key, owner);
+            } else {
                 store.deleteClaim(key);
             }
         }

@@ -288,7 +288,13 @@ public class ElixirManager {
         }
         for (UUID playerUuid : pendingKeys) {
             Double amount = pendingElixir.get(playerUuid);
-            if (amount != null) store.savePendingElixir(playerUuid, amount);
+            if (amount != null) {
+                store.savePendingElixir(playerUuid, amount);
+            } else {
+                // Claimed (or otherwise removed) after this key was drained: write
+                // the delete now so a crash before the next cycle cannot restore it.
+                store.deletePendingElixir(playerUuid);
+            }
         }
         for (UUID playerUuid : claimKeys) {
             Long claim = lastDailyClaim.get(playerUuid);

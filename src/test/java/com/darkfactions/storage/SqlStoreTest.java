@@ -9,7 +9,10 @@ import com.darkfactions.models.FactionPlayer;
 
 import java.io.File;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.logging.Logger;
 
@@ -210,5 +213,30 @@ class SqlStoreTest {
             }
         }
         assertEquals(1, memberships);
+    }
+
+    @Test
+    void saveAndLoadInvitesAndAllyRequestsRoundTrip() {
+        UUID player = UUID.randomUUID();
+        UUID factionA = UUID.randomUUID();
+        UUID factionB = UUID.randomUUID();
+        UUID target = UUID.randomUUID();
+        UUID requester = UUID.randomUUID();
+
+        Map<UUID, List<UUID>> invites = new HashMap<>();
+        invites.put(player, List.of(factionA, factionB));
+        Map<UUID, Set<UUID>> requests = new HashMap<>();
+        requests.put(target, Set.of(requester));
+
+        store.replaceAllInvites(invites);
+        store.replaceAllAllyRequests(requests);
+
+        Map<UUID, List<UUID>> loadedInvites = store.loadAllInvites();
+        assertEquals(1, loadedInvites.size());
+        assertEquals(Set.of(factionA, factionB), Set.copyOf(loadedInvites.get(player)));
+
+        Map<UUID, Set<UUID>> loadedRequests = store.loadAllAllyRequests();
+        assertEquals(1, loadedRequests.size());
+        assertEquals(Set.of(requester), loadedRequests.get(target));
     }
 }

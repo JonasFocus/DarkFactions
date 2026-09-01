@@ -16,6 +16,8 @@ import com.darkfactions.utils.FactionRankings;
 import org.bukkit.Location;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -35,6 +37,8 @@ public class FactionManager {
     private final Map<UUID, Set<UUID>> pendingAllyRequests;
     private final Map<String, UUID> factionsByName;
     private final Set<UUID> pendingDeletions;
+    private boolean invitesDirty;
+    private boolean allyRequestsDirty;
 
     public FactionManager(DarkFactions plugin) {
         this.plugin = plugin;
@@ -96,6 +100,7 @@ public class FactionManager {
 
         pendingInvites.values().forEach(list -> list.remove(factionId));
         pendingInvites.values().removeIf(List::isEmpty);
+        invitesDirty = true;
         clearAllyRequestsInvolving(factionId);
 
         // Scrub stale ally/enemy UUIDs from every surviving faction before removal.
@@ -162,6 +167,7 @@ public class FactionManager {
         faction.addMember(playerUuid);
         playerFactionMap.put(playerUuid, factionId);
         pendingInvites.remove(playerUuid);
+        invitesDirty = true;
 
         return true;
     }
@@ -224,6 +230,7 @@ public class FactionManager {
         if (playerFactionMap.containsKey(targetUuid)) return false;
         List<UUID> invites = pendingInvites.computeIfAbsent(targetUuid, k -> new CopyOnWriteArrayList<>());
         if (!invites.contains(factionId)) invites.add(factionId);
+        invitesDirty = true;
         return true;
     }
 
@@ -236,7 +243,14 @@ public class FactionManager {
     public boolean denyInvite(UUID playerUuid, UUID factionId) {
         List<UUID> invites = pendingInvites.get(playerUuid);
         if (invites == null) return false;
-        return invites.remove(factionId);
+        boolean removed = invites.remove(factionId);
+        if (removed) {
+            if (invites.isEmpty()) {
+                pendingInvites.remove(playerUuid);
+            }
+            invitesDirty = true;
+        }
+        return removed;
     }
 
     public List<UUID> getPendingInvites(UUID playerUuid) {
@@ -259,7 +273,9 @@ public class FactionManager {
      */
     public boolean sendAllyRequest(UUID fromFactionId, UUID toFactionId) {
         Set<UUID> requests = pendingAllyRequests.computeIfAbsent(toFactionId, k -> ConcurrentHashMap.newKeySet());
-        return requests.add(fromFactionId);
+        boolean added = requests.add(fromFactionId);
+        if (added) allyRequestsDirty = true;
+        return added;
     }
 
     public boolean hasPendingAllyRequest(UUID fromFactionId, UUID toFactionId) {
@@ -285,6 +301,7 @@ public class FactionManager {
         if (requests.isEmpty()) {
             pendingAllyRequests.remove(acceptingFactionId);
         }
+        allyRequestsDirty = true;
 
         accepting.removeEnemy(requestingFactionId);
         requesting.removeEnemy(acceptingFactionId);
@@ -300,6 +317,7 @@ public class FactionManager {
         if (requests.isEmpty()) {
             pendingAllyRequests.remove(denyingFactionId);
         }
+        if (removed) allyRequestsDirty = true;
         return removed;
     }
 
@@ -307,6 +325,7 @@ public class FactionManager {
         pendingAllyRequests.remove(factionId);
         pendingAllyRequests.values().forEach(set -> set.remove(factionId));
         pendingAllyRequests.values().removeIf(Set::isEmpty);
+        allyRequestsDirty = true;
     }
 
     // Drops any pending request between the two factions in either direction, so an
@@ -316,6 +335,7 @@ public class FactionManager {
         if (requestsToA != null) requestsToA.remove(factionBId);
         Set<UUID> requestsToB = pendingAllyRequests.get(factionBId);
         if (requestsToB != null) requestsToB.remove(factionAId);
+        allyRequestsDirty = true;
     }
 
     // ==========================================
@@ -419,7 +439,17 @@ public class FactionManager {
             }
             plugin.getLogger().info("Loaded faction: " + f.getName());
         }
-        plugin.getLogger().info("Loaded " + factions.size() + " factions!");
+        for (Map.Entry<UUID, List<UUID>> e : store.loadAllInvites().entrySet()) {
+            pendingInvites.put(e.getKey(), new CopyOnWriteArrayList<>(e.getValue()));
+        }
+        for (Map.Entry<UUID, Set<UUID>> e : store.loadAllAllyRequests().entrySet()) {
+            Set<UUID> requesters = ConcurrentHashMap.newKeySet();
+            requesters.addAll(e.getValue());
+            pendingAllyRequests.put(e.getKey(), requesters);
+        }
+        plugin.getLogger().info("Loaded " + factions.size() + " factions, "
+                + pendingInvites.size() + " invited players, "
+                + pendingAllyRequests.size() + " ally request targets!");
     }
 
     // Snapshots and clears the dirty flag of every faction that has unsaved
@@ -438,10 +468,17 @@ public class FactionManager {
     public void saveToStoreAsync(SaveQueue queue) {
         boolean hasDeletions = !pendingDeletions.isEmpty();
         List<Faction> toSave = collectDirty();
-        if (toSave.isEmpty() && !hasDeletions) return;
+        boolean saveInvites = invitesDirty;
+        boolean saveAllyRequests = allyRequestsDirty;
+        if (toSave.isEmpty() && !hasDeletions && !saveInvites && !saveAllyRequests) return;
 
         List<UUID> toDelete = hasDeletions ? new ArrayList<>(pendingDeletions) : List.of();
         pendingDeletions.removeAll(toDelete);
+
+        Map<UUID, List<UUID>> inviteSnapshot = saveInvites ? snapshotInvites() : null;
+        Map<UUID, Set<UUID>> allySnapshot = saveAllyRequests ? snapshotAllyRequests() : null;
+        if (saveInvites) invitesDirty = false;
+        if (saveAllyRequests) allyRequestsDirty = false;
 
         queue.submit(() -> {
             DataStore store = queue.store();
@@ -452,9 +489,17 @@ public class FactionManager {
                 for (Faction f : toSave) {
                     store.saveFaction(f);
                 }
+                if (inviteSnapshot != null) {
+                    store.replaceAllInvites(inviteSnapshot);
+                }
+                if (allySnapshot != null) {
+                    store.replaceAllAllyRequests(allySnapshot);
+                }
             } catch (RuntimeException e) {
                 pendingDeletions.addAll(toDelete);
                 toSave.forEach(Faction::markDirty);
+                if (inviteSnapshot != null) invitesDirty = true;
+                if (allySnapshot != null) allyRequestsDirty = true;
                 plugin.getLogger().log(Level.SEVERE, "Faction save failed, will retry on the next save cycle", e);
             }
         });
@@ -464,10 +509,17 @@ public class FactionManager {
     public void saveToStoreSync(DataStore store) {
         boolean hasDeletions = !pendingDeletions.isEmpty();
         List<Faction> toSave = factions.values().stream().filter(Faction::isDirty).toList();
-        if (toSave.isEmpty() && !hasDeletions) return;
+        boolean saveInvites = invitesDirty;
+        boolean saveAllyRequests = allyRequestsDirty;
+        if (toSave.isEmpty() && !hasDeletions && !saveInvites && !saveAllyRequests) return;
 
         List<UUID> toDelete = hasDeletions ? new ArrayList<>(pendingDeletions) : List.of();
         pendingDeletions.removeAll(toDelete);
+
+        Map<UUID, List<UUID>> inviteSnapshot = saveInvites ? snapshotInvites() : null;
+        Map<UUID, Set<UUID>> allySnapshot = saveAllyRequests ? snapshotAllyRequests() : null;
+        if (saveInvites) invitesDirty = false;
+        if (saveAllyRequests) allyRequestsDirty = false;
 
         try {
             for (UUID factionId : toDelete) {
@@ -476,10 +528,34 @@ public class FactionManager {
             for (Faction f : toSave) {
                 store.saveFaction(f);
             }
+            if (inviteSnapshot != null) {
+                store.replaceAllInvites(inviteSnapshot);
+            }
+            if (allySnapshot != null) {
+                store.replaceAllAllyRequests(allySnapshot);
+            }
             toSave.forEach(Faction::clearDirty);
         } catch (RuntimeException e) {
             pendingDeletions.addAll(toDelete);
+            if (inviteSnapshot != null) invitesDirty = true;
+            if (allySnapshot != null) allyRequestsDirty = true;
             plugin.getLogger().log(Level.SEVERE, "Faction save failed during shutdown", e);
         }
+    }
+
+    private Map<UUID, List<UUID>> snapshotInvites() {
+        Map<UUID, List<UUID>> copy = new HashMap<>();
+        for (Map.Entry<UUID, List<UUID>> e : pendingInvites.entrySet()) {
+            copy.put(e.getKey(), new ArrayList<>(e.getValue()));
+        }
+        return copy;
+    }
+
+    private Map<UUID, Set<UUID>> snapshotAllyRequests() {
+        Map<UUID, Set<UUID>> copy = new HashMap<>();
+        for (Map.Entry<UUID, Set<UUID>> e : pendingAllyRequests.entrySet()) {
+            copy.put(e.getKey(), new HashSet<>(e.getValue()));
+        }
+        return copy;
     }
 }

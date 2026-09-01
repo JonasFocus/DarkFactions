@@ -287,6 +287,7 @@ public class Faction {
     // ==========================================
 
     public void addEnemy(UUID factionId) {
+        allies.remove(factionId);
         enemies.add(factionId);
         markDirty();
     }
@@ -301,6 +302,7 @@ public class Faction {
     }
 
     public void addAlly(UUID factionId) {
+        enemies.remove(factionId);
         allies.add(factionId);
         markDirty();
     }

@@ -287,9 +287,12 @@ public class FactionListener implements Listener {
         plugin.getCombatManager().tag(victim.getUniqueId());
         plugin.getCombatManager().tag(attacker.getUniqueId());
 
-        // Cancel any pending home teleport / logout warmup for the victim
+        // Cancel pending home / logout warmups for both combatants so
+        // combat.prevent-home cannot be bypassed by punching after /f home.
         plugin.getFactionCommand().cancelWarmup(victim.getUniqueId(), true);
         plugin.getFactionCommand().cancelLogoutWarmup(victim.getUniqueId(), true);
+        plugin.getFactionCommand().cancelWarmup(attacker.getUniqueId(), true);
+        plugin.getFactionCommand().cancelLogoutWarmup(attacker.getUniqueId(), true);
     }
 
     // Classifies the victim's chunk relative to their own faction: unclaimed,
@@ -308,15 +311,16 @@ public class FactionListener implements Listener {
     }
 
     // Cancel home warmup on any damage (environmental, fall, fire, etc.) when configured.
+    // Logout warmup always cancels on damage; the /f logout comments promise this.
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onEntityDamage(EntityDamageEvent event) {
         if (!(event.getEntity() instanceof Player player)) {
             return;
         }
-        if (!plugin.getConfigManager().isHomeCancelOnDamage()) {
-            return;
+        plugin.getFactionCommand().cancelLogoutWarmup(player.getUniqueId(), true);
+        if (plugin.getConfigManager().isHomeCancelOnDamage()) {
+            plugin.getFactionCommand().cancelWarmup(player.getUniqueId(), true);
         }
-        plugin.getFactionCommand().cancelWarmup(player.getUniqueId(), true);
     }
 
     // Resolves the actual attacking Player for a damage source: the damager

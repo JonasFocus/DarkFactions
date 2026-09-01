@@ -57,6 +57,14 @@ public class FactionMembershipCommands extends AbstractFactionSubcommand {
             return true;
         }
 
+        int maxFactions = plugin.getConfigManager().getMaxFactionsPerPlayer();
+        if (maxFactions > 0
+                && plugin.getPowerManager().getPlayerData(player.getUniqueId()).getFactionsCreated() >= maxFactions) {
+            player.sendMessage(msg.error("You have already created the maximum of " + maxFactions
+                    + " faction" + (maxFactions == 1 ? "" : "s") + "!"));
+            return true;
+        }
+
         double createCost = plugin.getConfigManager().getElixirCreateFactionCost();
         if (createCost > 0) {
             if (!plugin.getElixirManager().removePendingElixir(player.getUniqueId(), createCost)) {
@@ -75,6 +83,8 @@ public class FactionMembershipCommands extends AbstractFactionSubcommand {
             player.sendMessage(msg.error("Failed to create faction! Are you already in one?"));
             return true;
         }
+
+        plugin.getPowerManager().incrementFactionsCreated(player.getUniqueId());
 
         player.sendMessage(msg.success("Faction '" + factionName + "' has been created!"));
         player.sendMessage(msg.info("Use /f invite <player> to add members!"));

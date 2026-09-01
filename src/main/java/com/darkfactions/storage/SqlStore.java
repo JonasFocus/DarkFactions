@@ -3,6 +3,7 @@ package com.darkfactions.storage;
 import com.darkfactions.DarkFactions;
 import com.darkfactions.models.Faction;
 import com.darkfactions.models.FactionPlayer;
+import com.darkfactions.utils.ClaimRules;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -452,16 +453,16 @@ public class SqlStore implements DataStore {
 
     @Override
     public void saveClaim(String key, UUID factionId) {
-        String[] parts = key.split(":", 3);
+        ClaimRules.ParsedKey parts = ClaimRules.parseKey(key);
         execute("REPLACE INTO faction_claims (world, chunk_x, chunk_z, faction_id) VALUES (?, ?, ?, ?)",
-                parts[0], Integer.parseInt(parts[1]), Integer.parseInt(parts[2]), factionId.toString());
+                parts.world(), parts.x(), parts.z(), factionId.toString());
     }
 
     @Override
     public void deleteClaim(String key) {
-        String[] parts = key.split(":", 3);
+        ClaimRules.ParsedKey parts = ClaimRules.parseKey(key);
         execute("DELETE FROM faction_claims WHERE world = ? AND chunk_x = ? AND chunk_z = ?",
-                parts[0], Integer.parseInt(parts[1]), Integer.parseInt(parts[2]));
+                parts.world(), parts.x(), parts.z());
     }
 
     @Override

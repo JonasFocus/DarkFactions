@@ -182,4 +182,33 @@ class SqlStoreTest {
         assertEquals(1, loaded.size());
         assertEquals(0, loaded.iterator().next().getFactionsCreated());
     }
+
+    @Test
+    void migrateSchemaDeduplicatesPlayerAcrossFactions() throws Exception {
+        UUID player = UUID.randomUUID();
+        Faction alpha = new Faction("Alpha", UUID.randomUUID());
+        Faction beta = new Faction("Beta", UUID.randomUUID());
+        store.saveFaction(alpha);
+        store.saveFaction(beta);
+
+        try (var c = databaseManager.getConnection();
+             var s = c.createStatement()) {
+            s.execute("INSERT INTO faction_members (faction_id, player_uuid, role) VALUES ('"
+                    + alpha.getFactionId() + "', '" + player + "', 'MEMBER')");
+            s.execute("INSERT INTO faction_members (faction_id, player_uuid, role) VALUES ('"
+                    + beta.getFactionId() + "', '" + player + "', 'MEMBER')");
+        }
+
+        store.migrateSchema(2);
+        store.migrateSchema(2);
+
+        Collection<Faction> loaded = store.loadAllFactions();
+        int memberships = 0;
+        for (Faction f : loaded) {
+            if (f.isMember(player)) {
+                memberships++;
+            }
+        }
+        assertEquals(1, memberships);
+    }
 }

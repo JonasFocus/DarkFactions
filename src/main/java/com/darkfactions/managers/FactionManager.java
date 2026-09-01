@@ -405,7 +405,17 @@ public class FactionManager {
             factions.put(f.getFactionId(), f);
             factionsByName.put(key, f.getFactionId());
             for (UUID muid : f.getMembers()) {
-                playerFactionMap.put(muid, f.getFactionId());
+                UUID existing = playerFactionMap.get(muid);
+                if (existing != null && !existing.equals(f.getFactionId())) {
+                    plugin.getLogger().severe("Player " + muid
+                            + " is a member of faction " + existing
+                            + " and " + f.getFactionId()
+                            + "; keeping the first membership and removing them from "
+                            + f.getName());
+                    f.removeMember(muid);
+                } else {
+                    playerFactionMap.put(muid, f.getFactionId());
+                }
             }
             plugin.getLogger().info("Loaded faction: " + f.getName());
         }

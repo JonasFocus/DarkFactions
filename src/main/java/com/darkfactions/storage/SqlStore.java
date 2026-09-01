@@ -6,6 +6,7 @@ import com.darkfactions.models.FactionPlayer;
 import com.darkfactions.utils.ClaimRules;
 
 import java.sql.Connection;
+import java.sql.DatabaseMetaData;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
@@ -145,8 +146,9 @@ public class SqlStore implements DataStore {
     /**
      * Schema v2: add {@code bonus_power} for admin/shop boosts. The legacy {@code power}
      * column is copied into {@code bonus_power} once, then ignored on read/write.
-     * Additive columns that do not bump {@code schema_version} (e.g. {@code factions_created})
-     * always run via {@code columnExists} so existing v2 databases pick them up.
+     * Additive changes that do not bump {@code schema_version} (e.g. {@code factions_created},
+     * unique {@code faction_members.player_uuid}) always run via existence checks so existing
+     * v2 databases pick them up.
      */
     @Override
     public void migrateSchema(int fromVersion) {
@@ -158,6 +160,17 @@ public class SqlStore implements DataStore {
         if (!columnExists("player_data", "factions_created")) {
             execute("ALTER TABLE player_data ADD COLUMN factions_created INT DEFAULT 0");
             logger.info("Added player_data.factions_created.");
+        }
+        if (!uniquePlayerMembershipIndexExists()) {
+            deleteDuplicateFactionMembers();
+            try (Connection c = db.getConnection();
+                 PreparedStatement s = c.prepareStatement(
+                         "CREATE UNIQUE INDEX IF NOT EXISTS idx_faction_members_player ON faction_members(player_uuid)")) {
+                s.executeUpdate();
+                logger.info("Added unique index idx_faction_members_player on faction_members.player_uuid.");
+            } catch (SQLException e) {
+                logger.log(Level.WARNING, "Could not create unique index on faction_members.player_uuid", e);
+            }
         }
     }
 
@@ -176,6 +189,80 @@ public class SqlStore implements DataStore {
         } catch (SQLException e) {
             logger.log(Level.WARNING, "Could not inspect column " + table + "." + column, e);
             return false;
+        }
+    }
+
+    private boolean uniquePlayerMembershipIndexExists() {
+        try (Connection c = db.getConnection()) {
+            var meta = c.getMetaData();
+            if (hasUniquePlayerUuidIndex(meta, "faction_members")) {
+                return true;
+            }
+            return hasUniquePlayerUuidIndex(meta, "faction_members".toLowerCase());
+        } catch (SQLException e) {
+            logger.log(Level.WARNING, "Could not inspect faction_members indexes", e);
+            return false;
+        }
+    }
+
+    private static boolean hasUniquePlayerUuidIndex(DatabaseMetaData meta, String table)
+            throws SQLException {
+        Map<String, List<String>> columnsByIndex = new HashMap<>();
+        try (ResultSet rs = meta.getIndexInfo(null, null, table, true, false)) {
+            while (rs.next()) {
+                String name = rs.getString("INDEX_NAME");
+                String col = rs.getString("COLUMN_NAME");
+                if (name == null || col == null) {
+                    continue;
+                }
+                columnsByIndex.computeIfAbsent(name, k -> new ArrayList<>()).add(col);
+            }
+        }
+        for (Map.Entry<String, List<String>> entry : columnsByIndex.entrySet()) {
+            if ("idx_faction_members_player".equalsIgnoreCase(entry.getKey())) {
+                return true;
+            }
+            if (entry.getValue().size() == 1 && "player_uuid".equalsIgnoreCase(entry.getValue().get(0))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // Keep the row whose faction_id is lexicographically first for each player_uuid.
+    private void deleteDuplicateFactionMembers() {
+        List<String[]> extras = new ArrayList<>();
+        try (Connection c = db.getConnection()) {
+            try (PreparedStatement s = c.prepareStatement(
+                    "SELECT player_uuid, faction_id FROM faction_members ORDER BY player_uuid, faction_id");
+                 ResultSet rs = s.executeQuery()) {
+                String lastPlayer = null;
+                while (rs.next()) {
+                    String player = rs.getString("player_uuid");
+                    String faction = rs.getString("faction_id");
+                    if (player.equals(lastPlayer)) {
+                        extras.add(new String[] { player, faction });
+                    } else {
+                        lastPlayer = player;
+                    }
+                }
+            }
+            if (extras.isEmpty()) {
+                return;
+            }
+            try (PreparedStatement del = c.prepareStatement(
+                    "DELETE FROM faction_members WHERE player_uuid = ? AND faction_id = ?")) {
+                for (String[] row : extras) {
+                    del.setString(1, row[0]);
+                    del.setString(2, row[1]);
+                    del.addBatch();
+                }
+                del.executeBatch();
+            }
+            logger.info("Removed " + extras.size() + " duplicate faction_members row(s).");
+        } catch (SQLException e) {
+            logger.log(Level.SEVERE, "Failed to delete duplicate faction members", e);
+            throw new StorageException("Failed to delete duplicate faction members", e);
         }
     }
 

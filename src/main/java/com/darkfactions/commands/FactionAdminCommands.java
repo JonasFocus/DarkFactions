@@ -154,6 +154,14 @@ public class FactionAdminCommands extends AbstractFactionSubcommand {
             case "members":
                 sorted = plugin.getFactionManager().getTopFactionsByMembers(limit);
                 break;
+            case "land":
+                sorted = plugin.getFactionManager().getAllFactions();
+                sorted.sort((a, b) -> Integer.compare(
+                        plugin.getClaimManager().getClaimCount(b.getFactionId()),
+                        plugin.getClaimManager().getClaimCount(a.getFactionId())
+                ));
+                sorted = sorted.subList(0, Math.min(limit, sorted.size()));
+                break;
             default:
                 sorted = plugin.getFactionManager().getTopFactionsByPower(limit);
                 break;

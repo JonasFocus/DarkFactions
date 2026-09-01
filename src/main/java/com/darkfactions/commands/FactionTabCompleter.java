@@ -85,8 +85,10 @@ public class FactionTabCompleter implements TabCompleter {
         // First argument - suggest subcommands
         if (args.length == 1) {
             String partial = args[0].toLowerCase();
+            boolean isAdmin = sender.hasPermission("darkfactions.admin");
             return SUBCOMMANDS.stream()
                     .filter(cmd -> cmd.startsWith(partial))
+                    .filter(cmd -> isAdmin || (!cmd.equals("admin") && !cmd.equals("reload")))
                     .collect(Collectors.toList());
         }
 
@@ -100,7 +102,8 @@ public class FactionTabCompleter implements TabCompleter {
 
             if (subCmd.equals("invite") || subCmd.equals("add") ||
                 subCmd.equals("uninvite") || subCmd.equals("revoke") ||
-                subCmd.equals("kick")) {
+                subCmd.equals("kick") || subCmd.equals("promote") ||
+                subCmd.equals("demote") || subCmd.equals("leader")) {
                 // Filter by what the player has typed so far; unlike the static
                 // placeholder branches, these are real names worth narrowing down.
                 String partial = args[1].toLowerCase();
@@ -142,7 +145,10 @@ public class FactionTabCompleter implements TabCompleter {
             }
 
             if (subCmd.equals("top")) {
-                return TOP_OPTIONS;
+                String partial = args[1].toLowerCase();
+                return TOP_OPTIONS.stream()
+                        .filter(opt -> opt.startsWith(partial))
+                        .collect(Collectors.toList());
             }
 
             if (subCmd.equals("map")) {

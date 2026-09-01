@@ -294,5 +294,6 @@ public class FactionAdminCommands extends AbstractFactionSubcommand {
         plugin.getPowerManager().reloadConfig();
         plugin.getElixirManager().reloadConfig();
         plugin.getClaimManager().reloadConfig();
+        plugin.reloadAutoSave();
     }
 }

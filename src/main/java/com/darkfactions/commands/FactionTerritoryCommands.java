@@ -10,6 +10,7 @@ import net.kyori.adventure.text.Component;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Chunk;
+import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitTask;
@@ -341,6 +342,12 @@ public class FactionTerritoryCommands extends AbstractFactionSubcommand {
 
         if (!plugin.getConfigManager().isFlightEnabled()) {
             player.sendMessage(msg.error("Faction flight is disabled on this server!"));
+            return true;
+        }
+
+        GameMode mode = player.getGameMode();
+        if (mode == GameMode.CREATIVE || mode == GameMode.SPECTATOR) {
+            player.sendMessage(msg.error("You cannot toggle faction flight in Creative or Spectator mode!"));
             return true;
         }
 

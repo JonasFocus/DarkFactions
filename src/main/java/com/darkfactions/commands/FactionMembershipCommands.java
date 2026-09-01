@@ -367,6 +367,12 @@ public class FactionMembershipCommands extends AbstractFactionSubcommand {
         if (faction == null) return true;
 
         if (faction.isLeader(player.getUniqueId())) {
+            if (faction.getMemberCount() == 1 && plugin.getConfigManager().isAutoDisbandEmpty()) {
+                String factionName = faction.getName();
+                plugin.getFactionManager().deleteFaction(faction.getFactionId());
+                player.sendMessage(msg.success("You have left " + factionName + ". The faction has been disbanded."));
+                return true;
+            }
             player.sendMessage(msg.error("You are the leader! Use /f leader <player> to transfer leadership first."));
             return true;
         }

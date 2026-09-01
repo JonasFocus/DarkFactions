@@ -123,20 +123,23 @@ public class ElixirManager {
             return;
         }
 
-        lastDailyClaim.put(playerUuid, now);
-        dirtyDailyClaims.markDirty(playerUuid);
-
         if (autoClaimOnJoin) {
             // Auto-claim the daily bonus directly to their faction
             Faction faction = plugin.getFactionManager().getPlayerFaction(playerUuid);
             if (faction != null) {
                 faction.addElixir(dailyBonus);
+                lastDailyClaim.put(playerUuid, now);
+                dirtyDailyClaims.markDirty(playerUuid);
+                return;
             }
-        } else {
-            // Add to pending - claimed via /f elixir
-            pendingElixir.merge(playerUuid, dailyBonus, Double::sum);
-            dirtyPendingElixir.markDirty(playerUuid);
         }
+
+        // Pending path: no auto-claim, or auto-claim with no faction yet.
+        // Park the bonus so they can /f elixir after joining.
+        pendingElixir.merge(playerUuid, dailyBonus, Double::sum);
+        dirtyPendingElixir.markDirty(playerUuid);
+        lastDailyClaim.put(playerUuid, now);
+        dirtyDailyClaims.markDirty(playerUuid);
     }
 
     public double getPendingElixir(UUID playerUuid) {

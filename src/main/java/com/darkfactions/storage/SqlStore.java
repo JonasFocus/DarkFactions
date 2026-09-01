@@ -119,6 +119,18 @@ public class SqlStore implements DataStore {
                 + "claimed_at BIGINT NOT NULL"
                 + ")");
 
+        execute("CREATE TABLE IF NOT EXISTS faction_invites ("
+                + "player_uuid VARCHAR(36) NOT NULL,"
+                + "faction_id VARCHAR(36) NOT NULL,"
+                + "PRIMARY KEY (player_uuid, faction_id)"
+                + ")");
+
+        execute("CREATE TABLE IF NOT EXISTS ally_requests ("
+                + "from_id VARCHAR(36) NOT NULL,"
+                + "to_id VARCHAR(36) NOT NULL,"
+                + "PRIMARY KEY (from_id, to_id)"
+                + ")");
+
         execute("CREATE TABLE IF NOT EXISTS schema_version ("
                 + "version INT PRIMARY KEY,"
                 + "applied_at BIGINT NOT NULL"
@@ -172,6 +184,17 @@ public class SqlStore implements DataStore {
                 logger.log(Level.WARNING, "Could not create unique index on faction_members.player_uuid", e);
             }
         }
+        // Additive tables: no schema_version bump, so existing databases pick them up.
+        execute("CREATE TABLE IF NOT EXISTS faction_invites ("
+                + "player_uuid VARCHAR(36) NOT NULL,"
+                + "faction_id VARCHAR(36) NOT NULL,"
+                + "PRIMARY KEY (player_uuid, faction_id)"
+                + ")");
+        execute("CREATE TABLE IF NOT EXISTS ally_requests ("
+                + "from_id VARCHAR(36) NOT NULL,"
+                + "to_id VARCHAR(36) NOT NULL,"
+                + "PRIMARY KEY (from_id, to_id)"
+                + ")");
     }
 
     private boolean columnExists(String table, String column) {
@@ -690,6 +713,114 @@ public class SqlStore implements DataStore {
     public void saveLastDailyClaim(UUID playerUuid, long epochMillis) {
         execute("REPLACE INTO elixir_daily_claims (player_uuid, claimed_at) VALUES (?, ?)",
                 playerUuid.toString(), epochMillis);
+    }
+
+    // ========== Pending Invites ==========
+
+    @Override
+    public Map<UUID, List<UUID>> loadAllInvites() {
+        Map<UUID, List<UUID>> map = new HashMap<>();
+        String sql = "SELECT player_uuid, faction_id FROM faction_invites";
+        try (Connection c = db.getConnection();
+             PreparedStatement s = c.prepareStatement(sql);
+             ResultSet rs = s.executeQuery()) {
+            while (rs.next()) {
+                UUID player = UUID.fromString(rs.getString("player_uuid"));
+                UUID factionId = UUID.fromString(rs.getString("faction_id"));
+                map.computeIfAbsent(player, k -> new ArrayList<>()).add(factionId);
+            }
+        } catch (SQLException e) {
+            logger.log(Level.SEVERE, "Failed to load pending invites", e);
+            throw new StorageException("Failed to load pending invites", e);
+        }
+        return map;
+    }
+
+    @Override
+    public void replaceAllInvites(Map<UUID, List<UUID>> invites) {
+        try (Connection c = db.getConnection()) {
+            boolean previousAutoCommit = c.getAutoCommit();
+            c.setAutoCommit(false);
+            try {
+                try (PreparedStatement s = c.prepareStatement("DELETE FROM faction_invites")) {
+                    s.executeUpdate();
+                }
+                try (PreparedStatement s = c.prepareStatement(
+                        "INSERT INTO faction_invites (player_uuid, faction_id) VALUES (?, ?)")) {
+                    for (Map.Entry<UUID, List<UUID>> e : invites.entrySet()) {
+                        String player = e.getKey().toString();
+                        for (UUID factionId : e.getValue()) {
+                            bind(s, player, factionId.toString());
+                            s.addBatch();
+                        }
+                    }
+                    s.executeBatch();
+                }
+                c.commit();
+            } catch (SQLException e) {
+                c.rollback();
+                throw e;
+            } finally {
+                c.setAutoCommit(previousAutoCommit);
+            }
+        } catch (SQLException e) {
+            logger.log(Level.SEVERE, "Failed to replace pending invites", e);
+            throw new StorageException("Failed to replace pending invites", e);
+        }
+    }
+
+    // ========== Pending Ally Requests ==========
+
+    @Override
+    public Map<UUID, Set<UUID>> loadAllAllyRequests() {
+        Map<UUID, Set<UUID>> map = new HashMap<>();
+        String sql = "SELECT from_id, to_id FROM ally_requests";
+        try (Connection c = db.getConnection();
+             PreparedStatement s = c.prepareStatement(sql);
+             ResultSet rs = s.executeQuery()) {
+            while (rs.next()) {
+                UUID fromId = UUID.fromString(rs.getString("from_id"));
+                UUID toId = UUID.fromString(rs.getString("to_id"));
+                map.computeIfAbsent(toId, k -> new HashSet<>()).add(fromId);
+            }
+        } catch (SQLException e) {
+            logger.log(Level.SEVERE, "Failed to load ally requests", e);
+            throw new StorageException("Failed to load ally requests", e);
+        }
+        return map;
+    }
+
+    @Override
+    public void replaceAllAllyRequests(Map<UUID, Set<UUID>> requests) {
+        try (Connection c = db.getConnection()) {
+            boolean previousAutoCommit = c.getAutoCommit();
+            c.setAutoCommit(false);
+            try {
+                try (PreparedStatement s = c.prepareStatement("DELETE FROM ally_requests")) {
+                    s.executeUpdate();
+                }
+                try (PreparedStatement s = c.prepareStatement(
+                        "INSERT INTO ally_requests (from_id, to_id) VALUES (?, ?)")) {
+                    for (Map.Entry<UUID, Set<UUID>> e : requests.entrySet()) {
+                        String toId = e.getKey().toString();
+                        for (UUID fromId : e.getValue()) {
+                            bind(s, fromId.toString(), toId);
+                            s.addBatch();
+                        }
+                    }
+                    s.executeBatch();
+                }
+                c.commit();
+            } catch (SQLException e) {
+                c.rollback();
+                throw e;
+            } finally {
+                c.setAutoCommit(previousAutoCommit);
+            }
+        } catch (SQLException e) {
+            logger.log(Level.SEVERE, "Failed to replace ally requests", e);
+            throw new StorageException("Failed to replace ally requests", e);
+        }
     }
 
     // ========== Helpers ==========

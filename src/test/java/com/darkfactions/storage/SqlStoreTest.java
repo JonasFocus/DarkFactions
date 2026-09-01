@@ -74,6 +74,29 @@ class SqlStoreTest {
     }
 
     @Test
+    void officerRoundTripKeepsMembershipAcrossSaves() {
+        UUID leader = UUID.randomUUID();
+        UUID officer = UUID.randomUUID();
+        Faction faction = new Faction("Warriors", leader);
+        faction.addMember(officer);
+        faction.promoteToOfficer(officer);
+
+        store.saveFaction(faction);
+
+        Faction loaded = store.loadAllFactions().iterator().next();
+        assertTrue(loaded.isMember(officer));
+        assertTrue(loaded.isOfficer(officer));
+        assertTrue(loaded.isMember(leader));
+
+        store.saveFaction(loaded);
+
+        Faction reloaded = store.loadAllFactions().iterator().next();
+        assertTrue(reloaded.isMember(officer));
+        assertTrue(reloaded.isOfficer(officer));
+        assertTrue(reloaded.isMember(leader));
+    }
+
+    @Test
     void deleteFactionRemovesRow() {
         Faction faction = new Faction("Doomed", UUID.randomUUID());
         store.saveFaction(faction);

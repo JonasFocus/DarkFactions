@@ -248,6 +248,7 @@ public class SqlStore implements DataStore {
                 UUID puid = UUID.fromString(rs.getString("player_uuid"));
                 if (ROLE_OFFICER.equals(rs.getString("role"))) {
                     officersByFaction.computeIfAbsent(fid, k -> new ArrayList<>()).add(puid);
+                    membersByFaction.computeIfAbsent(fid, k -> new ArrayList<>()).add(puid);
                 } else {
                     membersByFaction.computeIfAbsent(fid, k -> new ArrayList<>()).add(puid);
                 }

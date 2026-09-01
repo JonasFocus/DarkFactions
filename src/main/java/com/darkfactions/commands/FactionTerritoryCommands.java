@@ -105,6 +105,12 @@ public class FactionTerritoryCommands extends AbstractFactionSubcommand {
 
         int delay = plugin.getConfigManager().getHomeTeleportDelay();
         if (delay > 0) {
+            // Replace any in-flight home warmup for this player.
+            BukkitTask previous = pendingWarmups.remove(player.getUniqueId());
+            if (previous != null) {
+                previous.cancel();
+            }
+
             player.sendMessage(msg.info("Teleporting in " + delay + " seconds... don't move."));
             int warmupTicks = delay * 20;
             BukkitTask task = plugin.getServer().getScheduler().runTaskLater(plugin, () -> {

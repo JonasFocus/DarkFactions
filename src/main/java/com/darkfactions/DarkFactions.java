@@ -98,9 +98,9 @@ public class DarkFactions extends JavaPlugin {
             this.dataStore.createTables();
 
             int schemaVer = dataStore.getSchemaVersion();
-            // Schema version 2 means "column added AND in-memory legacy power migrated".
-            // Do not bump to 2 here — only run the ALTER; setSchemaVersion(2) happens
-            // after migrateLegacyBonusPower succeeds in loadAllData.
+            // Schema version 2 means the column is added and migrated power is on disk.
+            // Do not bump to 2 here. Only run the ALTER; setSchemaVersion(2) happens
+            // in loadAllData after the subtraction is persisted.
             migrateLegacyFactionPower = schemaVer < 2;
             if (schemaVer < 1) {
                 dataStore.setSchemaVersion(1);
@@ -150,8 +150,10 @@ public class DarkFactions extends JavaPlugin {
         powerManager.loadFromStore(dataStore);
         if (migrateLegacyFactionPower) {
             powerManager.migrateLegacyBonusPower();
-            // Only mark schema v2 complete after the in-memory subtraction succeeds,
-            // so a crash between ALTER and migration still re-runs migration next boot.
+            // Persist the subtraction before bumping schema. A crash after
+            // setSchemaVersion(2) and before the first successful faction save
+            // would skip migration on next boot and permanently double-count power.
+            factionManager.saveToStoreSync(dataStore);
             dataStore.setSchemaVersion(2);
             migrateLegacyFactionPower = false;
         }
@@ -188,9 +190,13 @@ public class DarkFactions extends JavaPlugin {
             powerManager.shutdown();
         }
 
-        persistAllSync();
+        // Drain in-flight async work first so persistAllSync's current state
+        // cannot be overwritten by an older saveFaction or deletePendingElixir.
         if (saveQueue != null) {
             saveQueue.flushAndAwait(30, TimeUnit.SECONDS);
+        }
+        persistAllSync();
+        if (saveQueue != null) {
             saveQueue.shutdown();
         }
         if (databaseManager != null) databaseManager.close();

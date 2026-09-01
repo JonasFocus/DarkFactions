@@ -296,6 +296,11 @@ public class PowerManager {
         getPlayerData(playerUuid).setLastLogoutTime(System.currentTimeMillis());
     }
 
+    public void incrementFactionsCreated(UUID playerUuid) {
+        FactionPlayer data = getPlayerData(playerUuid);
+        data.setFactionsCreated(data.getFactionsCreated() + 1);
+    }
+
     // ==========================================
     // Power Check - can a faction be raided?
     // ==========================================

@@ -31,6 +31,9 @@ public class FactionPlayer {
     // When the player last logged out (for power decay offline)
     private volatile long lastLogoutTime;
 
+    // Lifetime count of factions this player has created (for max-factions-per-player)
+    private volatile int factionsCreated;
+
     // Tracks whether this player has unsaved changes, so PowerManager only
     // has to persist the players that actually changed on a given save cycle
     // instead of rewriting every player in memory. Starts true so a
@@ -45,6 +48,7 @@ public class FactionPlayer {
         this.deaths = 0;
         this.lastLoginTime = System.currentTimeMillis();
         this.lastLogoutTime = 0;
+        this.factionsCreated = 0;
     }
 
     // No-arg constructor used when deserializing saved data (see PowerManager.loadPowerData),
@@ -132,6 +136,15 @@ public class FactionPlayer {
 
     public void setLastLogoutTime(long lastLogoutTime) {
         this.lastLogoutTime = lastLogoutTime;
+        markDirty();
+    }
+
+    public int getFactionsCreated() {
+        return factionsCreated;
+    }
+
+    public void setFactionsCreated(int factionsCreated) {
+        this.factionsCreated = factionsCreated;
         markDirty();
     }
 }

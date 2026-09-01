@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.darkfactions.models.Faction;
+import com.darkfactions.models.FactionPlayer;
 
 import java.io.File;
 import java.util.Collection;
@@ -133,5 +134,52 @@ class SqlStoreTest {
         Faction loaded = store.loadAllFactions().iterator().next();
         assertEquals(7.0, loaded.getBonusPower(), 0.001);
         assertFalse(store.loadAllFactions().isEmpty());
+    }
+
+    @Test
+    void saveAndLoadPlayerDataRoundTripsFactionsCreated() {
+        UUID uuid = UUID.randomUUID();
+        FactionPlayer data = new FactionPlayer(uuid);
+        data.setPower(8.0);
+        data.setMaxPower(10.0);
+        data.setKills(2);
+        data.setDeaths(1);
+        data.setFactionsCreated(3);
+
+        store.savePlayerData(data);
+
+        Collection<FactionPlayer> loaded = store.loadAllPlayerData();
+        assertEquals(1, loaded.size());
+        FactionPlayer roundTrip = loaded.iterator().next();
+        assertEquals(uuid, roundTrip.getPlayerUuid());
+        assertEquals(8.0, roundTrip.getPower(), 0.001);
+        assertEquals(3, roundTrip.getFactionsCreated());
+    }
+
+    @Test
+    void migrateSchemaAddsFactionsCreatedWhenMissing() throws Exception {
+        try (var c = databaseManager.getConnection();
+             var s = c.createStatement()) {
+            s.execute("DROP TABLE player_data");
+            s.execute("CREATE TABLE player_data ("
+                    + "uuid VARCHAR(36) PRIMARY KEY,"
+                    + "power DOUBLE DEFAULT 0,"
+                    + "max_power DOUBLE DEFAULT 10,"
+                    + "kills INT DEFAULT 0,"
+                    + "deaths INT DEFAULT 0,"
+                    + "faction VARCHAR(36),"
+                    + "last_login BIGINT DEFAULT 0,"
+                    + "last_logout BIGINT DEFAULT 0"
+                    + ")");
+            s.execute("INSERT INTO player_data (uuid, power, max_power, kills, deaths, last_login, last_logout) "
+                    + "VALUES ('" + UUID.randomUUID() + "', 10, 10, 0, 0, 0, 0)");
+        }
+
+        store.migrateSchema(2);
+        store.migrateSchema(2);
+
+        Collection<FactionPlayer> loaded = store.loadAllPlayerData();
+        assertEquals(1, loaded.size());
+        assertEquals(0, loaded.iterator().next().getFactionsCreated());
     }
 }

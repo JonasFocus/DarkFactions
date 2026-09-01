@@ -106,9 +106,9 @@ public class DarkFactions extends JavaPlugin {
                 dataStore.setSchemaVersion(1);
                 schemaVer = 1;
             }
-            if (schemaVer < 2) {
-                dataStore.migrateSchema(schemaVer);
-            }
+            // Always run migrateSchema so additive columns (no version bump) apply
+            // on existing v2 databases. v2-only bonus_power work stays gated inside.
+            dataStore.migrateSchema(schemaVer);
 
             // Single worker: SQLite serializes writes through one pooled connection
             // anyway, and a one-thread queue makes flushAndAwait's sentinel task a

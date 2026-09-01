@@ -99,7 +99,8 @@ public class SqlStore implements DataStore {
                 // Left in place rather than dropped to avoid a schema migration.
                 + "faction VARCHAR(36),"
                 + "last_login BIGINT DEFAULT 0,"
-                + "last_logout BIGINT DEFAULT 0"
+                + "last_logout BIGINT DEFAULT 0,"
+                + "factions_created INT DEFAULT 0"
                 + ")");
 
         execute("CREATE TABLE IF NOT EXISTS player_names ("
@@ -144,16 +145,19 @@ public class SqlStore implements DataStore {
     /**
      * Schema v2: add {@code bonus_power} for admin/shop boosts. The legacy {@code power}
      * column is copied into {@code bonus_power} once, then ignored on read/write.
+     * Additive columns that do not bump {@code schema_version} (e.g. {@code factions_created})
+     * always run via {@code columnExists} so existing v2 databases pick them up.
      */
     @Override
     public void migrateSchema(int fromVersion) {
-        if (fromVersion >= 2) {
-            return;
-        }
-        if (!columnExists("factions", "bonus_power")) {
+        if (fromVersion < 2 && !columnExists("factions", "bonus_power")) {
             execute("ALTER TABLE factions ADD COLUMN bonus_power DOUBLE DEFAULT 0");
             execute("UPDATE factions SET bonus_power = power");
             logger.info("Added factions.bonus_power and copied legacy power values.");
+        }
+        if (!columnExists("player_data", "factions_created")) {
+            execute("ALTER TABLE player_data ADD COLUMN factions_created INT DEFAULT 0");
+            logger.info("Added player_data.factions_created.");
         }
     }
 
@@ -488,6 +492,11 @@ public class SqlStore implements DataStore {
                 p.setDeaths(rs.getInt("deaths"));
                 p.setLastLoginTime(rs.getLong("last_login"));
                 p.setLastLogoutTime(rs.getLong("last_logout"));
+                if (hasColumn(rs, "factions_created")) {
+                    p.setFactionsCreated(rs.getInt("factions_created"));
+                } else {
+                    p.setFactionsCreated(0);
+                }
                 map.put(p.getPlayerUuid(), p);
             }
         } catch (SQLException e) {
@@ -499,15 +508,16 @@ public class SqlStore implements DataStore {
 
     @Override
     public void savePlayerData(FactionPlayer data) {
-        execute("REPLACE INTO player_data (uuid, power, max_power, kills, deaths, last_login, last_logout) "
-                        + "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        execute("REPLACE INTO player_data (uuid, power, max_power, kills, deaths, last_login, last_logout, factions_created) "
+                        + "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 data.getPlayerUuid().toString(),
                 data.getPower(),
                 data.getMaxPower(),
                 data.getKills(),
                 data.getDeaths(),
                 data.getLastLoginTime(),
-                data.getLastLogoutTime());
+                data.getLastLogoutTime(),
+                data.getFactionsCreated());
     }
 
     @Override

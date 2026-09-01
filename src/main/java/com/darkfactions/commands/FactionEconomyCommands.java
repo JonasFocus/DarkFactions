@@ -119,9 +119,9 @@ public class FactionEconomyCommands extends AbstractFactionSubcommand {
         double maxPowerAmount = plugin.getConfigManager().getShopMaxPowerAmount();
         player.sendMessage(msg.header("Faction Shop"));
         player.sendMessage(msg.info("Balance: " + String.format("%.0f", elixir) + " Elixir"));
-        player.sendMessage(msg.help("/f shop power [amount]",
+        player.sendMessage(msg.help("/f shop power <amount>",
                 "Boost faction power (" + String.format("%.0f", powerCost) + " elixir per 1 power)"));
-        player.sendMessage(msg.help("/f shop maxpower [amount]",
+        player.sendMessage(msg.help("/f shop maxpower <amount>",
                 "Increase max power (" + String.format("%.0f", maxPowerCost) + " elixir per "
                         + String.format("%.0f", maxPowerAmount) + " max power)"));
 

@@ -224,7 +224,6 @@ public class FactionAdminCommands extends AbstractFactionSubcommand {
         try {
             double amount = Double.parseDouble(args[3]);
             setter.accept(faction, amount);
-            plugin.getFactionManager().markDirty();
             sender.sendMessage(msg.success("Set " + faction.getName() + "'s " + label + " to " + amount));
             logAdmin(sender.getName() + " set " + faction.getName() + "'s " + label + " to " + amount);
         } catch (NumberFormatException e) {

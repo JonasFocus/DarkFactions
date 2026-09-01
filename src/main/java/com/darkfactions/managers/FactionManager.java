@@ -188,6 +188,7 @@ public class FactionManager {
         Faction faction = factions.get(factionId);
         if (faction == null) return false;
         if (!faction.isMember(playerUuid)) return false;
+        if (faction.isLeader(playerUuid)) return false;
         if (faction.isOfficer(playerUuid)) return false;
 
         // Check max officers limit
@@ -211,6 +212,7 @@ public class FactionManager {
         if (faction == null) return false;
         if (!faction.isMember(newLeaderUuid)) return false;
         faction.setLeaderUuid(newLeaderUuid);
+        faction.demoteFromOfficer(newLeaderUuid);
         return true;
     }
 

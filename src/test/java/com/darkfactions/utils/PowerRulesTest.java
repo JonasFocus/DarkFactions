@@ -58,4 +58,11 @@ class PowerRulesTest {
         assertEquals(60.0, PowerRules.effectiveFactionMaxPower(50.0, 10.0), EPS);
         assertEquals(50.0, PowerRules.effectiveFactionMaxPower(50.0, 0.0), EPS);
     }
+
+    @Test
+    void effectivePowerNeverExceedsEffectiveMax() {
+        assertEquals(25.0, PowerRules.clampEffective(25.0, 30.0), EPS);
+        assertEquals(20.0, PowerRules.clampEffective(25.0, 20.0), EPS, "effective power never exceeds effective max");
+        assertEquals(20.0, PowerRules.clampEffective(20.0, 20.0), EPS);
+    }
 }

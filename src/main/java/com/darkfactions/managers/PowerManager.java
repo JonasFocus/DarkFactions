@@ -157,7 +157,9 @@ public class PowerManager {
     public double getEffectiveFactionPower(UUID factionId) {
         Faction faction = plugin.getFactionManager().getFaction(factionId);
         if (faction == null) return 0.0;
-        return PowerRules.effectiveFactionPower(getFactionPower(factionId), faction.getBonusPower());
+        double raw = PowerRules.effectiveFactionPower(getFactionPower(factionId), faction.getBonusPower());
+        double max = getFactionMaxPower(factionId);
+        return PowerRules.clampEffective(raw, max);
     }
 
     /**

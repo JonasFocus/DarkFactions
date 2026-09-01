@@ -49,6 +49,11 @@ public final class PowerRules {
         return memberMaxPowerSum + bonusMaxPower;
     }
 
+    /** Clamp raw effective power so it never exceeds effective max. */
+    public static double clampEffective(double raw, double max) {
+        return Math.min(raw, max);
+    }
+
     /**
      * A faction is raidable when it has at least one member and its total power
      * is below {@code perMemberThreshold} per member.

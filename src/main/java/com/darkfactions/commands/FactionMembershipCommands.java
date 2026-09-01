@@ -399,6 +399,11 @@ public class FactionMembershipCommands extends AbstractFactionSubcommand {
             return true;
         }
 
+        if (faction.isLeader(targetUuid)) {
+            player.sendMessage(msg.error("You cannot promote the faction leader!"));
+            return true;
+        }
+
         if (faction.isOfficer(targetUuid)) {
             player.sendMessage(msg.error("That player is already an officer!"));
             return true;

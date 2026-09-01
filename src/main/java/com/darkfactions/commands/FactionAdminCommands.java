@@ -67,7 +67,7 @@ public class FactionAdminCommands extends AbstractFactionSubcommand {
         Faction claimFor = requireFactionByName(player, args[2]);
         if (claimFor == null) return true;
         Chunk chunk = player.getLocation().getChunk();
-        ClaimResult result = plugin.getClaimManager().claimChunk(chunk, claimFor.getFactionId());
+        ClaimResult result = plugin.getClaimManager().forceClaim(chunk, claimFor.getFactionId());
         if (result.isSuccess()) {
             player.sendMessage(msg.success("Chunk claimed for " + claimFor.getName() + "!"));
             logAdmin(player.getName() + " force-claimed chunk for " + claimFor.getName());

@@ -116,18 +116,34 @@ public class FactionTerritoryCommands extends AbstractFactionSubcommand {
             BukkitTask task = plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
                 pendingWarmups.remove(player.getUniqueId());
                 if (!player.isOnline()) return;
+                if (!homeStillOwned(player, faction, home)) return;
                 homeCooldowns.put(player.getUniqueId(), System.currentTimeMillis());
                 player.teleport(home);
                 player.sendMessage(msg.success("Welcome to your faction home!"));
             }, warmupTicks);
             pendingWarmups.put(player.getUniqueId(), task);
         } else {
+            if (!homeStillOwned(player, faction, home)) return true;
             homeCooldowns.put(player.getUniqueId(), System.currentTimeMillis());
             player.teleport(home);
             player.sendMessage(msg.success("Welcome to your faction home!"));
         }
 
         return true;
+    }
+
+    /**
+     * Re-check that the home chunk is still owned by this faction at teleport time.
+     * Clears a stale home so /f home cannot drop the player into wilderness or enemy land.
+     */
+    private boolean homeStillOwned(Player player, Faction faction, Location home) {
+        UUID ownerId = plugin.getClaimManager().getLocationOwner(home);
+        if (ownerId != null && ownerId.equals(faction.getFactionId())) {
+            return true;
+        }
+        faction.setWorldName(null);
+        player.sendMessage(msg.error("Your faction home is no longer in claimed land!"));
+        return false;
     }
 
     // Cancel a pending home warmup for a player. Called from the listener on move/damage.

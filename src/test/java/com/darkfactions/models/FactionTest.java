@@ -79,13 +79,15 @@ class FactionTest {
 
         faction.addEnemy(other);
         faction.addEnemy(other);
+        assertEquals(1, faction.getEnemies().size());
+
         faction.addAlly(other);
         faction.addAlly(other);
 
-        assertTrue(faction.isEnemy(other));
         assertTrue(faction.isAlly(other));
-        assertEquals(1, faction.getEnemies().size());
+        assertFalse(faction.isEnemy(other));
         assertEquals(1, faction.getAllies().size());
+        assertEquals(0, faction.getEnemies().size());
     }
 
     @Test

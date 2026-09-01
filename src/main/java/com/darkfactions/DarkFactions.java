@@ -124,6 +124,14 @@ public class DarkFactions extends JavaPlugin {
         }
     }
 
+    public void reloadAutoSave() {
+        if (autoSaveTaskId != -1) {
+            getServer().getScheduler().cancelTask(autoSaveTaskId);
+            autoSaveTaskId = -1;
+        }
+        startAutoSaveTask();
+    }
+
     private void startAutoSaveTask() {
         int intervalSeconds = configManager.getAutoSaveInterval();
         if (intervalSeconds <= 0) {

@@ -27,11 +27,13 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockBurnEvent;
+import org.bukkit.event.block.BlockFromToEvent;
 import org.bukkit.event.block.BlockIgniteEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityChangeBlockEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
+import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.player.PlayerBucketEmptyEvent;
@@ -47,7 +49,9 @@ import org.bukkit.event.block.BlockPistonRetractEvent;
 import io.papermc.paper.event.player.AsyncChatEvent;
 
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class FactionListener implements Listener {
 
@@ -59,6 +63,11 @@ public class FactionListener implements Listener {
 
     // Routes faction/ally chat
     private final FactionChatService chatService;
+
+    // Victims killed by the combat-log quit handler. setHealth(0) can still
+    // fire PlayerDeathEvent with killer == null, which would apply a second
+    // (PvE) penalty on top of the PvP loss already applied on quit.
+    private final Set<UUID> combatLogVictims = ConcurrentHashMap.newKeySet();
 
     // ==========================================
     // Constructor
@@ -274,7 +283,7 @@ public class FactionListener implements Listener {
                 return;
             }
             case ALLOW_NO_TAG -> {
-                // Sparring with a non-enemy in your own territory: allow the hit,
+                // Same-faction sparring in your own territory: allow the hit,
                 // but skip combat tagging (no flight-lock, no combat-log punishment).
                 return;
             }
@@ -407,6 +416,26 @@ public class FactionListener implements Listener {
             event.getPlayer().sendMessage(plugin.getMessageUtils().error(
                     "You cannot take liquids from " + denier.getName() + "'s territory!"
             ));
+        }
+    }
+
+    // ==========================================
+    // Liquid flow Protection - Water/lava crossing into foreign claims
+    // Same-faction flow is allowed. No player to message.
+    // ==========================================
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onBlockFromTo(BlockFromToEvent event) {
+        if (!plugin.getConfigManager().isProtectionEnabled()) {
+            return;
+        }
+        Block dest = event.getToBlock();
+        UUID destOwner = plugin.getClaimManager().getLocationOwner(dest.getLocation());
+        if (destOwner == null) {
+            return;
+        }
+        UUID sourceOwner = plugin.getClaimManager().getLocationOwner(event.getBlock().getLocation());
+        if (!destOwner.equals(sourceOwner)) {
+            event.setCancelled(true);
         }
     }
 
@@ -561,7 +590,10 @@ public class FactionListener implements Listener {
                 // normal PlayerDeathEvent pipeline. Apply the power-loss penalty
                 // directly instead of relying on that event to fire.
                 plugin.getPowerManager().onPlayerDeath(playerUuid);
+                combatLogVictims.add(playerUuid);
                 player.setHealth(0);
+                // Drop the marker if PlayerDeathEvent never fired this tick.
+                plugin.getServer().getScheduler().runTask(plugin, () -> combatLogVictims.remove(playerUuid));
                 plugin.getLogger().warning(player.getName() + " combat-logged and was killed.");
             }
         }
@@ -577,6 +609,13 @@ public class FactionListener implements Listener {
     public void onPlayerDeath(PlayerDeathEvent event) {
         Player victim = event.getEntity();
         UUID victimUuid = victim.getUniqueId();
+
+        // Combat-log quit already applied the PvP power loss. Skip this event
+        // so a killer-less death does not also apply the PvE penalty.
+        if (combatLogVictims.remove(victimUuid)) {
+            plugin.getCombatManager().clear(victimUuid);
+            return;
+        }
 
         Player killer = victim.getKiller();
 
@@ -622,6 +661,21 @@ public class FactionListener implements Listener {
                     "Enemy kill! Elixir earned for " + killerFaction.getName()
             ));
         }
+    }
+
+    // ==========================================
+    // MOB DEATH - Power gain on mob kills
+    // ==========================================
+    @EventHandler
+    public void onEntityDeath(EntityDeathEvent event) {
+        if (event.getEntity() instanceof Player) {
+            return;
+        }
+        Player killer = event.getEntity().getKiller();
+        if (killer == null) {
+            return;
+        }
+        plugin.getPowerManager().onPlayerMobKill(killer.getUniqueId());
     }
 
     private void notifyPowerChange(Player player, double before, double after, String reason) {

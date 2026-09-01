@@ -66,9 +66,9 @@ class PvpRulesTest {
     }
 
     @Test
-    void neutralFactionAttackerInOwnTerritoryAllowedWithoutTag() {
+    void neutralFactionAttackerInOwnTerritoryCombatTags() {
         // Attacker belongs to a faction that is neither an ally nor an enemy.
-        assertEquals(Verdict.ALLOW_NO_TAG, PvpRules.resolve(
+        assertEquals(Verdict.ALLOW, PvpRules.resolve(
                 false, true, true, false, true, false, Territory.OWN, true, true, true, true));
     }
 

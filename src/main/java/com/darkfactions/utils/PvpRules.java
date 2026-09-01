@@ -15,7 +15,7 @@ public final class PvpRules {
 
     public enum Verdict {
         ALLOW,
-        // Allow the hit but skip combat tagging: sparring with a non-enemy in your
+        // Allow the hit but skip combat tagging: same-faction sparring in your
         // own territory shouldn't trigger flight-lock or combat-log punishment.
         ALLOW_NO_TAG,
         DENY_FACTION_PVP_DISABLED,
@@ -67,7 +67,7 @@ public final class PvpRules {
         if (!allowed) {
             return Verdict.DENY_TERRITORY;
         }
-        if (territory == Territory.OWN && attackerHasFaction && !attackerIsEnemy) {
+        if (territory == Territory.OWN && sameFaction) {
             return Verdict.ALLOW_NO_TAG;
         }
         return Verdict.ALLOW;

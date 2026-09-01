@@ -30,6 +30,10 @@ permissions:
   darkfactions.admin:
     description: Gives access to admin faction commands like /f admin
     default: op
+    children:
+      darkfactions.use: true
+      darkfactions.create: true
+      darkfactions.ally: true
 
   darkfactions.create:
     description: Allows a player to create a new faction

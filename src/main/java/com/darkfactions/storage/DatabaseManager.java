@@ -21,19 +21,31 @@ public class DatabaseManager implements AutoCloseable {
 
     public DatabaseManager(DarkFactions plugin, Type type, String host, int port, String database,
                            String username, String password) {
-        this(plugin.getLogger(), plugin.getDataFolder(), type, host, port, database, username, password);
+        this(plugin, type, host, port, database, username, password, false, true);
+    }
+
+    public DatabaseManager(DarkFactions plugin, Type type, String host, int port, String database,
+                           String username, String password, boolean useSsl, boolean allowPublicKeyRetrieval) {
+        this(plugin.getLogger(), plugin.getDataFolder(), type, host, port, database, username, password,
+                useSsl, allowPublicKeyRetrieval);
     }
 
     /** Test-friendly constructor that does not require a live Bukkit plugin. */
     public DatabaseManager(Logger logger, File dataFolder, Type type, String host, int port, String database,
                            String username, String password) {
+        this(logger, dataFolder, type, host, port, database, username, password, false, true);
+    }
+
+    public DatabaseManager(Logger logger, File dataFolder, Type type, String host, int port, String database,
+                           String username, String password, boolean useSsl, boolean allowPublicKeyRetrieval) {
         this.logger = logger;
         this.dataFolder = dataFolder;
         this.type = type;
-        init(type, host, port, database, username, password);
+        init(type, host, port, database, username, password, useSsl, allowPublicKeyRetrieval);
     }
 
-    private void init(Type type, String host, int port, String database, String username, String password) {
+    private void init(Type type, String host, int port, String database, String username, String password,
+                      boolean useSsl, boolean allowPublicKeyRetrieval) {
         HikariConfig config = new HikariConfig();
 
         if (type == Type.SQLITE) {
@@ -45,7 +57,7 @@ public class DatabaseManager implements AutoCloseable {
             config.setConnectionTestQuery("SELECT 1");
         } else {
             config.setJdbcUrl("jdbc:mysql://" + host + ":" + port + "/" + database
-                    + "?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true");
+                    + "?useSSL=" + useSsl + "&serverTimezone=UTC&allowPublicKeyRetrieval=" + allowPublicKeyRetrieval);
             config.setDriverClassName("com.mysql.cj.jdbc.Driver");
             config.setUsername(username);
             config.setPassword(password);
